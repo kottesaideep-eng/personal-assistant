@@ -3,6 +3,7 @@ Orchestrator agent: routes user requests, uses tools, and maintains conversation
 """
 
 import anthropic
+import os
 from datetime import date
 from rich.console import Console
 from rich.markdown import Markdown
@@ -10,7 +11,7 @@ from rich.markdown import Markdown
 from tools import get_tools, execute_tool
 
 console = Console()
-_client = anthropic.Anthropic()
+_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 SYSTEM_PROMPT = """You are a highly capable personal assistant. Today's date is {today}.
 
