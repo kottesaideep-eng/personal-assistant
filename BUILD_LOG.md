@@ -426,6 +426,7 @@ Redesign mobile UI with polished chat interface
 | 39 | "i need a ios widget as well" |
 | 40 | "ok, could you add a feature where i call SARVIS from my phone it should answer" |
 | 41 | "Can you name it Roar" |
+| 42 | "Can you give the header as Roar-at your service for the app" |
 
 ---
 

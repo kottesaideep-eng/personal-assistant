@@ -232,7 +232,7 @@ export default function App() {
             <Text style={{ fontSize: 20 }}>🤖</Text>
           </View>
           <View>
-            <Text style={styles.headerTitle}>Personal Assistant</Text>
+            <Text style={styles.headerTitle}>Roar — at your service</Text>
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, backendUrl ? styles.statusOnline : styles.statusOffline]} />
               <Text style={styles.statusText}>{backendUrl ? "Online" : "Not configured"}</Text>
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1e293b", alignItems: "center", justifyContent: "center",
     borderWidth: 1, borderColor: "#334155",
   },
-  headerTitle: { color: "#f1f5f9", fontSize: 16, fontWeight: "700" },
+  headerTitle: { color: "#f1f5f9", fontSize: 15, fontWeight: "700" },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   statusOnline: { backgroundColor: "#22c55e" },
