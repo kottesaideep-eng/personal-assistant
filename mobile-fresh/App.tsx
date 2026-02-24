@@ -5,7 +5,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -20,11 +20,59 @@ import ChatInput from "./src/components/ChatInput";
 import SettingsModal from "./src/components/SettingsModal";
 
 const BACKEND_URL_KEY = "BACKEND_URL";
-
 let msgCounter = 0;
-function newId() {
-  return `msg_${Date.now()}_${++msgCounter}`;
+const newId = () => `msg_${Date.now()}_${++msgCounter}`;
+
+function TypingIndicator() {
+  const dots = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
+
+  useEffect(() => {
+    const animations = dots.map((dot, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 160),
+          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0, duration: 300, useNativeDriver: true }),
+          Animated.delay(480 - i * 160),
+        ])
+      )
+    );
+    animations.forEach((a) => a.start());
+    return () => animations.forEach((a) => a.stop());
+  }, []);
+
+  return (
+    <View style={typingStyles.row}>
+      <View style={typingStyles.avatar}>
+        <Text style={{ fontSize: 14 }}>🤖</Text>
+      </View>
+      <View style={typingStyles.bubble}>
+        {dots.map((dot, i) => (
+          <Animated.View
+            key={i}
+            style={[typingStyles.dot, { opacity: dot, transform: [{ translateY: dot.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] }]}
+          />
+        ))}
+      </View>
+    </View>
+  );
 }
+
+const typingStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "flex-end", marginHorizontal: 12, marginVertical: 5 },
+  avatar: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: "#1e293b", alignItems: "center", justifyContent: "center",
+    marginRight: 8, borderWidth: 1, borderColor: "#334155",
+  },
+  bubble: {
+    backgroundColor: "#1e293b", borderRadius: 22, borderBottomLeftRadius: 5,
+    borderWidth: 1, borderColor: "#334155",
+    paddingHorizontal: 16, paddingVertical: 14,
+    flexDirection: "row", alignItems: "center", gap: 5,
+  },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#60a5fa" },
+});
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -34,29 +82,19 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
-  // Load saved backend URL on mount
   useEffect(() => {
     AsyncStorage.getItem(BACKEND_URL_KEY).then((saved) => {
-      if (saved) {
-        setBackendUrl(saved);
-      } else {
-        setShowSettings(true); // First launch — prompt for URL
-      }
+      if (saved) setBackendUrl(saved);
+      else setShowSettings(true);
     });
   }, []);
 
-  // Add a welcome message once URL is configured
   useEffect(() => {
     if (backendUrl && messages.length === 0) {
-      setMessages([
-        {
-          id: newId(),
-          role: "assistant",
-          content:
-            "Hi! I'm your personal assistant 👋\n\nI can search the web, manage your calendar, take notes, set reminders, remember your preferences, and more. How can I help you today?",
-          timestamp: Date.now(),
-        },
-      ]);
+      setMessages([{
+        id: newId(), role: "assistant", timestamp: Date.now(),
+        content: "Hi! I'm your personal assistant 👋\n\nI can **search the web**, manage your **calendar**, take **notes**, set **reminders**, remember your **preferences**, and more.\n\nHow can I help you today?",
+      }]);
     }
   }, [backendUrl]);
 
@@ -64,52 +102,27 @@ export default function App() {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
-  const handleSend = useCallback(
-    async (text: string) => {
-      if (!backendUrl) {
-        setShowSettings(true);
-        return;
-      }
+  const handleSend = useCallback(async (text: string) => {
+    if (!backendUrl) { setShowSettings(true); return; }
 
-      const userMsg: Message = {
-        id: newId(),
-        role: "user",
-        content: text,
-        timestamp: Date.now(),
-      };
+    setMessages((prev) => [...prev, { id: newId(), role: "user", content: text, timestamp: Date.now() }]);
+    setLoading(true);
+    scrollToBottom();
 
-      setMessages((prev) => [...prev, userMsg]);
-      setLoading(true);
+    try {
+      const result = await sendMessage(backendUrl, text, apiHistory);
+      setMessages((prev) => [...prev, { id: newId(), role: "assistant", content: result.reply, timestamp: Date.now() }]);
+      setApiHistory(result.history);
+    } catch (err: unknown) {
+      setMessages((prev) => [...prev, {
+        id: newId(), role: "assistant", timestamp: Date.now(),
+        content: `⚠️ **Error:** ${err instanceof Error ? err.message : "Failed to reach server."}\n\nCheck your backend URL in Settings.`,
+      }]);
+    } finally {
+      setLoading(false);
       scrollToBottom();
-
-      try {
-        const result = await sendMessage(backendUrl, text, apiHistory);
-
-        const assistantMsg: Message = {
-          id: newId(),
-          role: "assistant",
-          content: result.reply,
-          timestamp: Date.now(),
-        };
-
-        setMessages((prev) => [...prev, assistantMsg]);
-        setApiHistory(result.history);
-        scrollToBottom();
-      } catch (err: unknown) {
-        const errorMsg: Message = {
-          id: newId(),
-          role: "assistant",
-          content: `⚠️ Error: ${err instanceof Error ? err.message : "Failed to reach server."}\n\nCheck your backend URL in Settings.`,
-          timestamp: Date.now(),
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-        scrollToBottom();
-      } finally {
-        setLoading(false);
-      }
-    },
-    [backendUrl, apiHistory, scrollToBottom]
-  );
+    }
+  }, [backendUrl, apiHistory, scrollToBottom]);
 
   const handleSaveUrl = useCallback(async (url: string) => {
     await AsyncStorage.setItem(BACKEND_URL_KEY, url);
@@ -117,42 +130,35 @@ export default function App() {
     setShowSettings(false);
   }, []);
 
-  const handleClearChat = useCallback(() => {
-    setMessages([]);
-    setApiHistory([]);
-  }, []);
-
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      <StatusBar barStyle="light-content" backgroundColor="#0a0f1e" />
 
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Personal Assistant</Text>
-          <Text style={styles.headerSub}>
-            {backendUrl ? "● Connected" : "○ Not configured"}
-          </Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.headerIcon}>
+            <Text style={{ fontSize: 20 }}>🤖</Text>
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>Personal Assistant</Text>
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, backendUrl ? styles.statusOnline : styles.statusOffline]} />
+              <Text style={styles.statusText}>{backendUrl ? "Online" : "Not configured"}</Text>
+            </View>
+          </View>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleClearChat} style={styles.iconBtn}>
-            <Text style={styles.iconBtnText}>🗑</Text>
+          <TouchableOpacity onPress={() => { setMessages([]); setApiHistory([]); }} style={styles.iconBtn}>
+            <Text style={styles.iconBtnText}>✕</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setShowSettings(true)}
-            style={styles.iconBtn}
-          >
+          <TouchableOpacity onPress={() => setShowSettings(true)} style={styles.iconBtn}>
             <Text style={styles.iconBtnText}>⚙️</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-      >
-        {/* Message list */}
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <FlatList
           ref={listRef}
           data={messages}
@@ -163,29 +169,23 @@ export default function App() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>🤖</Text>
-              <Text style={styles.emptyText}>
-                {backendUrl
-                  ? "Start a conversation…"
-                  : "Configure your backend URL to get started."}
-              </Text>
+              <Text style={styles.emptyIcon}>✨</Text>
+              <Text style={styles.emptyTitle}>What can I help with?</Text>
+              <View style={styles.suggestionGrid}>
+                {["Search the web", "Add calendar event", "Create a note", "Set a reminder"].map((s) => (
+                  <TouchableOpacity key={s} style={styles.suggestion} onPress={() => handleSend(s)}>
+                    <Text style={styles.suggestionText}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           }
         />
 
-        {/* Typing indicator */}
-        {loading && (
-          <View style={styles.typingRow}>
-            <ActivityIndicator color="#3b82f6" size="small" />
-            <Text style={styles.typingText}>  Thinking…</Text>
-          </View>
-        )}
-
-        {/* Input */}
+        {loading && <TypingIndicator />}
         <ChatInput onSend={handleSend} disabled={loading} />
       </KeyboardAvoidingView>
 
-      {/* Settings modal */}
       <SettingsModal
         visible={showSettings}
         currentUrl={backendUrl}
@@ -197,73 +197,44 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#0f172a",
-  },
-  flex: {
-    flex: 1,
-  },
+  safe: { flex: 1, backgroundColor: "#0a0f1e" },
+  flex: { flex: 1 },
+
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#0f172a",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: "#0a0f1e",
+    borderBottomWidth: 1, borderBottomColor: "#1e293b",
   },
-  headerTitle: {
-    color: "#f1f5f9",
-    fontSize: 17,
-    fontWeight: "700",
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "#1e293b", alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "#334155",
   },
-  headerSub: {
-    color: "#22c55e",
-    fontSize: 12,
-    marginTop: 1,
-  },
-  headerActions: {
-    flexDirection: "row",
-    gap: 4,
-  },
+  headerTitle: { color: "#f1f5f9", fontSize: 16, fontWeight: "700" },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusOnline: { backgroundColor: "#22c55e" },
+  statusOffline: { backgroundColor: "#64748b" },
+  statusText: { color: "#64748b", fontSize: 12 },
+  headerActions: { flexDirection: "row", gap: 4 },
   iconBtn: {
-    padding: 8,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "#1e293b", alignItems: "center", justifyContent: "center",
   },
-  iconBtnText: {
-    fontSize: 20,
+  iconBtnText: { fontSize: 16 },
+
+  list: { paddingVertical: 16, paddingBottom: 8, flexGrow: 1 },
+
+  emptyState: { flex: 1, alignItems: "center", paddingTop: 60, paddingHorizontal: 24 },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: { color: "#94a3b8", fontSize: 18, fontWeight: "600", marginBottom: 24 },
+  suggestionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "center" },
+  suggestion: {
+    backgroundColor: "#1e293b", borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderWidth: 1, borderColor: "#334155",
   },
-  list: {
-    paddingVertical: 12,
-    flexGrow: 1,
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 80,
-    paddingHorizontal: 32,
-  },
-  emptyIcon: {
-    fontSize: 56,
-    marginBottom: 16,
-  },
-  emptyText: {
-    color: "#475569",
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  typingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  typingText: {
-    color: "#64748b",
-    fontSize: 13,
-    fontStyle: "italic",
-  },
+  suggestionText: { color: "#94a3b8", fontSize: 14 },
 });
