@@ -16,6 +16,7 @@ import * as Notifications from "expo-notifications";
 
 import { Message, HistoryItem } from "./src/types";
 import { sendMessage, registerDevice } from "./src/api";
+import { updateWidgetLastMessage } from "./modules/shared-defaults";
 import { saveConversation, loadConversation } from "./src/utils/storage";
 import { registerForPushNotificationsAsync, sendTokenToBackend } from "./src/utils/notifications";
 import MessageBubble from "./src/components/MessageBubble";
@@ -154,6 +155,8 @@ export default function App() {
       );
       setMessages((prev) => [...prev, { id: newId(), role: "assistant", content: result.reply, timestamp: Date.now() }]);
       setApiHistory(result.history);
+      // Keep iOS widget in sync with latest reply
+      updateWidgetLastMessage(result.reply.slice(0, 140));
     } catch (err: unknown) {
       setMessages((prev) => [...prev, {
         id: newId(), role: "assistant", timestamp: Date.now(),

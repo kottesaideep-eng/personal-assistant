@@ -1,0 +1,7 @@
+{
+  "name": "SharedDefaults",
+  "platforms": ["ios"],
+  "ios": {
+    "modules": ["SharedDefaultsModule"]
+  }
+}

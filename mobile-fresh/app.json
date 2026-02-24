@@ -15,6 +15,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.saideep.personalassistant",
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.saideep.personalassistant"]
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Personal Assistant to take photos to share with Claude",
         "NSPhotoLibraryUsageDescription": "Allow Personal Assistant to access your photos to share with Claude",
@@ -57,7 +60,13 @@
           "speechRecognitionPermission": "Allow Personal Assistant to use speech recognition"
         }
       ],
-      "react-native-android-widget"
+      "react-native-android-widget",
+      [
+        "@bacons/apple-targets",
+        {
+          "appleTeamId": "REPLACE_WITH_YOUR_TEAM_ID"
+        }
+      ]
     ]
   }
 }

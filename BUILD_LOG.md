@@ -423,6 +423,7 @@ Redesign mobile UI with polished chat interface
 | 36 | "push the changes to github" |
 | 37 | "Could you document all the prompts used to build this app and the queries executed" |
 | 38 | "Implement the following plan: Add 6 New Features to Personal Assistant App" |
+| 39 | "i need a ios widget as well" |
 
 ---
 
@@ -630,6 +631,58 @@ httpx>=0.27.0
 | `server.py` | Image fields in ChatRequest, /register-device, APScheduler for reminders |
 | `assistant.py` | Multi-modal content block support (image + text) |
 | `requirements.txt` | apscheduler, httpx |
+
+---
+
+## Phase 8 — iOS Home Screen Widget
+
+### User Prompt
+```
+"i need a ios widget as well"
+```
+
+### Approach
+iOS widgets require native SwiftUI/WidgetKit code — no pure-JS solution exists.
+Used `@bacons/apple-targets` (by Evan Bacon / Expo team) as the Expo config plugin
+to inject the widget extension into the Xcode project during `eas build`.
+
+Widget reads the last assistant reply from an **App Group shared UserDefaults**
+(`group.com.saideep.personalassistant`) so it stays in sync without network calls.
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `targets/widget/index.swift` | SwiftUI widget — small + medium layouts, dark theme matching app |
+| `targets/widget/Info.plist` | Widget extension info plist |
+| `targets/widget/expo-target.config.js` | Tells `@bacons/apple-targets` this is a WidgetKit extension |
+| `modules/shared-defaults/ios/SharedDefaults.swift` | Native Expo module — writes/reads App Group UserDefaults |
+| `modules/shared-defaults/index.ts` | JS API: `updateWidgetLastMessage(msg)` |
+| `modules/shared-defaults/expo-module.config.json` | Expo module config |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `app.json` | Added `@bacons/apple-targets` plugin; iOS App Group entitlement |
+| `App.tsx` | Call `updateWidgetLastMessage(reply)` after each assistant response |
+
+### How It Works
+1. After every Claude reply: `updateWidgetLastMessage(reply.slice(0,140))` writes to `UserDefaults(suiteName: "group.com.saideep.personalassistant")`
+2. The SwiftUI widget reads this key on its 15-minute refresh cycle (or on WidgetKit's system schedule)
+3. Small widget: emoji + title + message preview + "Open →"
+4. Medium widget: left branding column + right "last reply" column
+
+### Package Installed
+```bash
+npm install @bacons/apple-targets
+```
+
+### Setup Required Before Building
+1. In `app.json`, replace `"REPLACE_WITH_YOUR_TEAM_ID"` with your Apple Developer Team ID
+   (find it at developer.apple.com → Membership — 10-character string like `A1B2C3D4E5`)
+2. Register the App Group `group.com.saideep.personalassistant` in Apple Developer portal
+   (Identifiers → App Groups → +)
+3. Add the App Group to both the main app identifier AND a new widget extension identifier
+4. Run: `eas build --platform ios --profile preview`
 
 ---
 
