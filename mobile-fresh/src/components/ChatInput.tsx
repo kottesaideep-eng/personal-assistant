@@ -22,9 +22,10 @@ interface PendingImage {
 interface Props {
   onSend: (text: string, image?: PendingImage) => void;
   disabled: boolean;
+  autoActivateMic?: boolean;
 }
 
-export default function ChatInput({ onSend, disabled }: Props) {
+export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) {
   const [text, setText] = useState("");
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -49,6 +50,14 @@ export default function ChatInput({ onSend, disabled }: Props) {
       Voice.destroy().then(Voice.removeAllListeners);
     };
   }, []);
+
+  // Auto-activate mic when opened via "Hey Siri, SARVIS" or deep link
+  useEffect(() => {
+    if (autoActivateMic && !disabled) {
+      const timer = setTimeout(() => handleMicPressIn(), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [autoActivateMic]);
 
   // Pulsing animation while recording
   useEffect(() => {

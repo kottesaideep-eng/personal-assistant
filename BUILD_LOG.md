@@ -424,6 +424,7 @@ Redesign mobile UI with polished chat interface
 | 37 | "Could you document all the prompts used to build this app and the queries executed" |
 | 38 | "Implement the following plan: Add 6 New Features to Personal Assistant App" |
 | 39 | "i need a ios widget as well" |
+| 40 | "ok, could you add a feature where i call SARVIS from my phone it should answer" |
 
 ---
 
@@ -683,6 +684,70 @@ npm install @bacons/apple-targets
    (Identifiers → App Groups → +)
 3. Add the App Group to both the main app identifier AND a new widget extension identifier
 4. Run: `eas build --platform ios --profile preview`
+
+---
+
+## Phase 9 — "Hey SARVIS" Voice Activation
+
+### User Prompt
+```
+"ok, could you add a feature where i call SARVIS from my phone it should answer"
+```
+
+### What Was Built
+"Hey Siri, SARVIS" (iOS) and "Hey Google, open SARVIS" (Android) open the app
+and automatically activate the microphone — so the user can speak immediately.
+
+### How It Works
+
+#### iOS — Siri Shortcut
+1. On first launch, `donateSarvisShortcut()` donates an `NSUserActivity` with
+   suggested phrase `"SARVIS"` to Siri
+2. iOS suggests adding it to Siri in Settings → Siri & Search
+3. User can also tap **"Add SARVIS to Siri"** in Settings ⚙️ to set a custom phrase
+4. When triggered: `addShortcutListener` fires → `autoVoice = true` →
+   `ChatInput` auto-starts mic after 600 ms
+
+#### Android — Google Assistant
+1. App is renamed **"SARVIS"** in `app.json`
+2. "Hey Google, open SARVIS" opens the app (no code needed — Google reads app name)
+3. Android home screen shortcut: `sarvis://voice` deep link → auto-starts mic
+
+#### Deep Link fallback (`sarvis://voice`)
+- Works on both platforms via `Linking.getInitialURL()` and `Linking.addEventListener`
+- Any shortcut, NFC tag, or QR code pointing to `sarvis://voice` triggers auto-mic
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `src/utils/shortcut.ts` | `donateSarvisShortcut()`, `addSarvisShortcutListener()`, `presentAddToSiriDialog()` |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `app.json` | Renamed app to "SARVIS"; added `scheme: "sarvis"`; `NSUserActivityTypes`; Siri entitlement; Android intent filter |
+| `App.tsx` | Donate shortcut on launch; Siri + URL deep link listeners; `autoVoice` state → passed to ChatInput |
+| `src/components/ChatInput.tsx` | `autoActivateMic` prop — starts mic 600ms after mount if true |
+| `src/components/SettingsModal.tsx` | "Add SARVIS to Siri" button (iOS) / Google Assistant instructions (Android) |
+| `src/widgets/AssistantWidget.tsx` | Renamed to "SARVIS" |
+| `targets/widget/index.swift` | Renamed widget to "SARVIS" |
+
+### Package Installed
+```bash
+npm install react-native-siri-shortcut --legacy-peer-deps
+npm install expo-linking --legacy-peer-deps
+```
+
+### User Setup (iOS)
+After installing the EAS build:
+1. Open SARVIS → tap ⚙️ → tap **"Add 'SARVIS' to Siri"**
+2. Record your phrase (default suggestion: "SARVIS")
+3. Say **"Hey Siri, SARVIS"** — app opens and mic activates
+
+### User Setup (Android)
+After installing the EAS build:
+- Say **"Hey Google, open SARVIS"** — app opens
+- Or create a home screen shortcut with URL `sarvis://voice` for instant mic
 
 ---
 

@@ -9,8 +9,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { checkHealth } from "../api";
+import { presentAddToSiriDialog } from "../utils/shortcut";
 
 interface Props {
   visible: boolean;
@@ -87,6 +89,33 @@ export default function SettingsModal({ visible, currentUrl, onSave, onClose }: 
               <Text style={styles.saveText}>Save & Connect</Text>
             </TouchableOpacity>
           </View>
+
+          {/* SARVIS voice shortcut */}
+          <View style={styles.divider} />
+          <Text style={styles.label}>Voice Activation</Text>
+          {Platform.OS === "ios" ? (
+            <TouchableOpacity
+              style={styles.siriBtn}
+              onPress={() =>
+                presentAddToSiriDialog((status) => {
+                  if (status === "added" || status === "updated") {
+                    Alert.alert(
+                      "SARVIS added to Siri ✅",
+                      'Say "Hey Siri, SARVIS" to open the app and start talking.'
+                    );
+                  }
+                })
+              }
+            >
+              <Text style={styles.siriBtnText}>🎙 Add "SARVIS" to Siri</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.androidHint}>
+              <Text style={styles.androidHintText}>
+                Say <Text style={styles.androidPhrase}>"Hey Google, open SARVIS"</Text> to launch and start talking.
+              </Text>
+            </View>
+          )}
 
           <Text style={styles.hint}>
             Deploy the backend to Railway, then paste the generated URL here.
@@ -196,5 +225,40 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: "center",
     lineHeight: 18,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#1e293b",
+    marginVertical: 20,
+  },
+  siriBtn: {
+    backgroundColor: "#000",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  siriBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  androidHint: {
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  androidHintText: {
+    color: "#94a3b8",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  androidPhrase: {
+    color: "#60a5fa",
+    fontWeight: "600",
   },
 });

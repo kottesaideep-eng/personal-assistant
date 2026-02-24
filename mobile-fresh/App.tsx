@@ -12,11 +12,13 @@ import {
   StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 
 import { Message, HistoryItem } from "./src/types";
 import { sendMessage, registerDevice } from "./src/api";
 import { updateWidgetLastMessage } from "./modules/shared-defaults";
+import { donateSarvisShortcut, addSarvisShortcutListener } from "./src/utils/shortcut";
 import { saveConversation, loadConversation } from "./src/utils/storage";
 import { registerForPushNotificationsAsync, sendTokenToBackend } from "./src/utils/notifications";
 import MessageBubble from "./src/components/MessageBubble";
@@ -93,6 +95,7 @@ export default function App() {
   const [backendUrl, setBackendUrl] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [autoVoice, setAutoVoice] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
   // Load backend URL and init notifications
@@ -101,6 +104,31 @@ export default function App() {
       if (saved) setBackendUrl(saved);
       else setShowSettings(true);
     });
+  }, []);
+
+  // Siri shortcut: donate on launch + listen for invocation
+  useEffect(() => {
+    donateSarvisShortcut();
+    const removeSiriListener = addSarvisShortcutListener(() => {
+      setAutoVoice(true);
+      // Reset after activation so re-opening doesn't re-trigger
+      setTimeout(() => setAutoVoice(false), 2000);
+    });
+    return () => removeSiriListener();
+  }, []);
+
+  // Deep link handler: sarvis://voice activates mic (Android + fallback)
+  useEffect(() => {
+    const activateIfVoiceUrl = (url: string | null) => {
+      if (url?.includes("voice")) {
+        setAutoVoice(true);
+        setTimeout(() => setAutoVoice(false), 2000);
+      }
+    };
+
+    Linking.getInitialURL().then(activateIfVoiceUrl);
+    const sub = Linking.addEventListener("url", ({ url }) => activateIfVoiceUrl(url));
+    return () => sub.remove();
   }, []);
 
   // Register for push notifications once backend URL is known
@@ -249,7 +277,7 @@ export default function App() {
         />
 
         {loading && <TypingIndicator />}
-        <ChatInput onSend={handleSend} disabled={loading} />
+        <ChatInput onSend={handleSend} disabled={loading} autoActivateMic={autoVoice} />
       </KeyboardAvoidingView>
 
       <SettingsModal
