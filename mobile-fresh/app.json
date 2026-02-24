@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "SARVIS",
+    "name": "Roar",
     "slug": "personal-assistant",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "scheme": "sarvis",
+    "scheme": "roar",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -21,10 +21,10 @@
         "com.apple.developer.siri": true
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "Allow SARVIS to take photos to share with Claude",
-        "NSPhotoLibraryUsageDescription": "Allow SARVIS to access your photos to share with Claude",
-        "NSMicrophoneUsageDescription": "Allow SARVIS to access your microphone for voice input",
-        "NSSpeechRecognitionUsageDescription": "Allow SARVIS to use speech recognition for voice input",
+        "NSCameraUsageDescription": "Allow Roar to take photos to share with Claude",
+        "NSPhotoLibraryUsageDescription": "Allow Roar to access your photos to share with Claude",
+        "NSMicrophoneUsageDescription": "Allow Roar to access your microphone for voice input",
+        "NSSpeechRecognitionUsageDescription": "Allow Roar to use speech recognition for voice input",
         "NSUserActivityTypes": ["com.saideep.personalassistant.voice"]
       }
     },
@@ -47,7 +47,7 @@
         {
           "action": "android.intent.action.VIEW",
           "autoVerify": true,
-          "data": [{"scheme": "sarvis"}],
+          "data": [{"scheme": "roar"}],
           "category": ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
         }
       ]
@@ -59,16 +59,16 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow SARVIS to access your photos",
-          "cameraPermission": "Allow SARVIS to take photos"
+          "photosPermission": "Allow Roar to access your photos",
+          "cameraPermission": "Allow Roar to take photos"
         }
       ],
       "expo-notifications",
       [
         "@react-native-voice/voice",
         {
-          "microphonePermission": "Allow SARVIS to access your microphone",
-          "speechRecognitionPermission": "Allow SARVIS to use speech recognition"
+          "microphonePermission": "Allow Roar to access your microphone",
+          "speechRecognitionPermission": "Allow Roar to use speech recognition"
         }
       ],
       "react-native-android-widget",

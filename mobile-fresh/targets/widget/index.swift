@@ -51,7 +51,7 @@ struct AssistantWidgetSmallView: View {
                 HStack(spacing: 6) {
                     Text("🤖")
                         .font(.system(size: 18))
-                    Text("SARVIS")
+                    Text("Roar")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(Color(hex: "#f1f5f9"))
                     Spacer()
@@ -92,7 +92,7 @@ struct AssistantWidgetMediumView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("🤖")
                         .font(.system(size: 28))
-                    Text("SARVIS")
+                    Text("Roar")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(Color(hex: "#f1f5f9"))
                         .lineLimit(2)
@@ -173,8 +173,8 @@ struct AssistantWidget: Widget {
                 AssistantWidgetEntryView(entry: entry)
             }
         }
-        .configurationDisplayName("SARVIS")
-        .description("Quick access to SARVIS — your personal AI assistant.")
+        .configurationDisplayName("Roar")
+        .description("Quick access to Roar — your personal AI assistant.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

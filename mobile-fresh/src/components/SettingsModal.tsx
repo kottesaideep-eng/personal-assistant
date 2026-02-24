@@ -90,7 +90,7 @@ export default function SettingsModal({ visible, currentUrl, onSave, onClose }: 
             </TouchableOpacity>
           </View>
 
-          {/* SARVIS voice shortcut */}
+          {/* Roar voice shortcut */}
           <View style={styles.divider} />
           <Text style={styles.label}>Voice Activation</Text>
           {Platform.OS === "ios" ? (
@@ -100,19 +100,19 @@ export default function SettingsModal({ visible, currentUrl, onSave, onClose }: 
                 presentAddToSiriDialog((status) => {
                   if (status === "added" || status === "updated") {
                     Alert.alert(
-                      "SARVIS added to Siri ✅",
-                      'Say "Hey Siri, SARVIS" to open the app and start talking.'
+                      "Roar added to Siri ✅",
+                      'Say "Hey Siri, Roar" to open the app and start talking.'
                     );
                   }
                 })
               }
             >
-              <Text style={styles.siriBtnText}>🎙 Add "SARVIS" to Siri</Text>
+              <Text style={styles.siriBtnText}>🎙 Add "Roar" to Siri</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.androidHint}>
               <Text style={styles.androidHintText}>
-                Say <Text style={styles.androidPhrase}>"Hey Google, open SARVIS"</Text> to launch and start talking.
+                Say <Text style={styles.androidPhrase}>"Hey Google, open Roar"</Text> to launch and start talking.
               </Text>
             </View>
           )}

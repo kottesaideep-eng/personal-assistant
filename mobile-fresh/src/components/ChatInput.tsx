@@ -51,7 +51,7 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
     };
   }, []);
 
-  // Auto-activate mic when opened via "Hey Siri, SARVIS" or deep link
+  // Auto-activate mic when opened via "Hey Siri, Roar" or deep link
   useEffect(() => {
     if (autoActivateMic && !disabled) {
       const timer = setTimeout(() => handleMicPressIn(), 600);

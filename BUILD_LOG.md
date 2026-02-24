@@ -425,6 +425,7 @@ Redesign mobile UI with polished chat interface
 | 38 | "Implement the following plan: Add 6 New Features to Personal Assistant App" |
 | 39 | "i need a ios widget as well" |
 | 40 | "ok, could you add a feature where i call SARVIS from my phone it should answer" |
+| 41 | "Can you name it Roar" |
 
 ---
 

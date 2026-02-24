@@ -1,18 +1,18 @@
 import { Platform } from "react-native";
 
-export const SARVIS_ACTIVITY_TYPE = "com.saideep.personalassistant.voice";
-export const SARVIS_PHRASE = "SARVIS";
+export const Roar_ACTIVITY_TYPE = "com.saideep.personalassistant.voice";
+export const Roar_PHRASE = "Roar";
 
 const shortcutOptions = {
-  activityType: SARVIS_ACTIVITY_TYPE,
-  title: "Chat with SARVIS",
-  suggestedInvocationPhrase: SARVIS_PHRASE,
+  activityType: Roar_ACTIVITY_TYPE,
+  title: "Chat with Roar",
+  suggestedInvocationPhrase: Roar_PHRASE,
   isEligibleForSearch: true,
   isEligibleForPrediction: true,
   userInfo: { action: "voice" },
 };
 
-/** Donate the SARVIS shortcut to Siri so it learns the user's phrase. */
+/** Donate the Roar shortcut to Siri so it learns the user's phrase. */
 export function donateSarvisShortcut(): void {
   if (Platform.OS !== "ios") return;
   try {
@@ -39,7 +39,7 @@ export function presentAddToSiriDialog(
   }
 }
 
-/** Register a listener for when Siri opens the app via the SARVIS shortcut. */
+/** Register a listener for when Siri opens the app via the Roar shortcut. */
 export function addSarvisShortcutListener(onInvoked: () => void): () => void {
   if (Platform.OS !== "ios") return () => {};
   try {
@@ -47,14 +47,14 @@ export function addSarvisShortcutListener(onInvoked: () => void): () => void {
 
     // Handle cold-start via Siri
     getInitialShortcut().then((shortcut: { activityType: string } | null) => {
-      if (shortcut?.activityType === SARVIS_ACTIVITY_TYPE) {
+      if (shortcut?.activityType === Roar_ACTIVITY_TYPE) {
         onInvoked();
       }
     });
 
     // Handle warm-start via Siri
     const sub = addShortcutListener((shortcut: { activityType: string }) => {
-      if (shortcut.activityType === SARVIS_ACTIVITY_TYPE) {
+      if (shortcut.activityType === Roar_ACTIVITY_TYPE) {
         onInvoked();
       }
     });

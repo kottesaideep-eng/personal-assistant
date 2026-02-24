@@ -25,7 +25,7 @@ export function AssistantWidget({ lastMessage }: Props) {
     >
       <FlexWidget style={{ flexDirection: "row", alignItems: "center" }}>
         <TextWidget
-          text="🤖  SARVIS"
+          text="🤖  Roar"
           style={{ color: "#f1f5f9", fontSize: 14, fontWeight: "bold" }}
         />
       </FlexWidget>
