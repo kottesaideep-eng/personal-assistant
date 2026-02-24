@@ -1,5 +1,16 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  Share,
+  Platform,
+  ActionSheetIOS,
+  Alert,
+} from "react-native";
+import * as Clipboard from "expo-clipboard";
 import Markdown from "react-native-markdown-display";
 import { Message } from "../types";
 
@@ -58,6 +69,24 @@ const userMarkdown = {
   link: { color: "#bfdbfe" },
 };
 
+function showCopyShareSheet(content: string) {
+  if (Platform.OS === "ios") {
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ["Copy text", "Share", "Cancel"], cancelButtonIndex: 2 },
+      async (index) => {
+        if (index === 0) await Clipboard.setStringAsync(content);
+        if (index === 1) await Share.share({ message: content });
+      }
+    );
+  } else {
+    Alert.alert("Message options", undefined, [
+      { text: "Copy text", onPress: () => Clipboard.setStringAsync(content) },
+      { text: "Share", onPress: () => Share.share({ message: content }) },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+}
+
 export default function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
   const time = new Date(message.timestamp).toLocaleTimeString([], {
@@ -72,14 +101,25 @@ export default function MessageBubble({ message }: Props) {
           <Text style={styles.avatarEmoji}>🤖</Text>
         </View>
       )}
-      <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onLongPress={() => showCopyShareSheet(message.content)}
+        style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}
+      >
+        {message.imageUri && (
+          <Image
+            source={{ uri: message.imageUri }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        )}
         <Markdown style={isUser ? userMarkdown : assistantMarkdown}>
           {message.content}
         </Markdown>
         <Text style={[styles.time, isUser ? styles.timeUser : styles.timeAssistant]}>
           {time}
         </Text>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -132,6 +172,13 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 5,
     borderWidth: 1,
     borderColor: "#334155",
+  },
+
+  image: {
+    width: "100%",
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 8,
   },
 
   time: { fontSize: 11, marginTop: 5, textAlign: "right" },

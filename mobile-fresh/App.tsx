@@ -12,16 +12,27 @@ import {
   StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
 
 import { Message, HistoryItem } from "./src/types";
-import { sendMessage } from "./src/api";
+import { sendMessage, registerDevice } from "./src/api";
+import { saveConversation, loadConversation } from "./src/utils/storage";
+import { registerForPushNotificationsAsync, sendTokenToBackend } from "./src/utils/notifications";
 import MessageBubble from "./src/components/MessageBubble";
 import ChatInput from "./src/components/ChatInput";
 import SettingsModal from "./src/components/SettingsModal";
+import HistoryModal from "./src/components/HistoryModal";
 
 const BACKEND_URL_KEY = "BACKEND_URL";
 let msgCounter = 0;
 const newId = () => `msg_${Date.now()}_${++msgCounter}`;
+
+const WELCOME_MESSAGE: Message = {
+  id: "welcome",
+  role: "assistant",
+  timestamp: Date.now(),
+  content: "Hi! I'm your personal assistant 👋\n\nI can **search the web**, manage your **calendar**, take **notes**, set **reminders**, remember your **preferences**, and more.\n\nHow can I help you today?",
+};
 
 function TypingIndicator() {
   const dots = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
@@ -80,8 +91,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [backendUrl, setBackendUrl] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
+  // Load backend URL and init notifications
   useEffect(() => {
     AsyncStorage.getItem(BACKEND_URL_KEY).then((saved) => {
       if (saved) setBackendUrl(saved);
@@ -89,12 +102,27 @@ export default function App() {
     });
   }, []);
 
+  // Register for push notifications once backend URL is known
+  useEffect(() => {
+    if (!backendUrl) return;
+    registerForPushNotificationsAsync().then((token) => {
+      if (token) {
+        sendTokenToBackend(token, backendUrl);
+        registerDevice(backendUrl, token, Platform.OS);
+      }
+    });
+
+    // Handle notification tap-to-open
+    const responseSub = Notifications.addNotificationResponseReceivedListener((_response) => {
+      // Open app (already happens by default); could navigate to specific screen
+    });
+    return () => responseSub.remove();
+  }, [backendUrl]);
+
+  // Show welcome message when backend URL is set and no messages yet
   useEffect(() => {
     if (backendUrl && messages.length === 0) {
-      setMessages([{
-        id: newId(), role: "assistant", timestamp: Date.now(),
-        content: "Hi! I'm your personal assistant 👋\n\nI can **search the web**, manage your **calendar**, take **notes**, set **reminders**, remember your **preferences**, and more.\n\nHow can I help you today?",
-      }]);
+      setMessages([{ ...WELCOME_MESSAGE, id: newId(), timestamp: Date.now() }]);
     }
   }, [backendUrl]);
 
@@ -102,15 +130,28 @@ export default function App() {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (
+    text: string,
+    image?: { uri: string; base64: string; mimeType: string }
+  ) => {
     if (!backendUrl) { setShowSettings(true); return; }
 
-    setMessages((prev) => [...prev, { id: newId(), role: "user", content: text, timestamp: Date.now() }]);
+    const userMsg: Message = {
+      id: newId(),
+      role: "user",
+      content: text,
+      timestamp: Date.now(),
+      imageUri: image?.uri,
+    };
+    setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
     scrollToBottom();
 
     try {
-      const result = await sendMessage(backendUrl, text, apiHistory);
+      const result = await sendMessage(
+        backendUrl, text, apiHistory,
+        image?.base64, image?.mimeType
+      );
       setMessages((prev) => [...prev, { id: newId(), role: "assistant", content: result.reply, timestamp: Date.now() }]);
       setApiHistory(result.history);
     } catch (err: unknown) {
@@ -123,6 +164,25 @@ export default function App() {
       scrollToBottom();
     }
   }, [backendUrl, apiHistory, scrollToBottom]);
+
+  const handleClear = useCallback(async () => {
+    // Auto-save current conversation before clearing (if there are user messages)
+    const userMsgs = messages.filter((m) => m.role === "user" && m.id !== "welcome");
+    if (userMsgs.length > 0) {
+      const title = userMsgs[0].content.slice(0, 40) || "Conversation";
+      await saveConversation(title, messages, apiHistory);
+    }
+    setMessages([{ ...WELCOME_MESSAGE, id: newId(), timestamp: Date.now() }]);
+    setApiHistory([]);
+  }, [messages, apiHistory]);
+
+  const handleLoadConversation = useCallback(async (id: string) => {
+    const data = await loadConversation(id);
+    if (data) {
+      setMessages(data.messages);
+      setApiHistory(data.apiHistory);
+    }
+  }, []);
 
   const handleSaveUrl = useCallback(async (url: string) => {
     await AsyncStorage.setItem(BACKEND_URL_KEY, url);
@@ -149,8 +209,11 @@ export default function App() {
           </View>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={() => { setMessages([]); setApiHistory([]); }} style={styles.iconBtn}>
+          <TouchableOpacity onPress={handleClear} style={styles.iconBtn}>
             <Text style={styles.iconBtnText}>✕</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowHistory(true)} style={styles.iconBtn}>
+            <Text style={styles.iconBtnText}>📋</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowSettings(true)} style={styles.iconBtn}>
             <Text style={styles.iconBtnText}>⚙️</Text>
@@ -191,6 +254,13 @@ export default function App() {
         currentUrl={backendUrl}
         onSave={handleSaveUrl}
         onClose={backendUrl ? () => setShowSettings(false) : undefined}
+      />
+
+      <HistoryModal
+        visible={showHistory}
+        onClose={() => setShowHistory(false)}
+        onNewChat={() => { setShowHistory(false); handleClear(); }}
+        onLoadConversation={handleLoadConversation}
       />
     </SafeAreaView>
   );

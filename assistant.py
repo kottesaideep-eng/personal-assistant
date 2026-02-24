@@ -112,7 +112,12 @@ def run_turn(user_message: str, history: list) -> tuple[str, list]:
             return final_text, history
 
 
-def run_turn_headless(user_message: str, history: list) -> tuple[str, list]:
+def run_turn_headless(
+    user_message: str,
+    history: list,
+    image_base64: str | None = None,
+    image_mime_type: str | None = "image/jpeg",
+) -> tuple[str, list]:
     """
     API-friendly version of run_turn — no Rich console output.
     history: list of {"role": "user"|"assistant", "content": str}
@@ -120,9 +125,30 @@ def run_turn_headless(user_message: str, history: list) -> tuple[str, list]:
     """
     system = SYSTEM_PROMPT.format(today=date.today().isoformat())
     history = list(history)
+
+    # Build user content — multi-modal if image is present
+    if image_base64:
+        user_content = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": image_mime_type or "image/jpeg",
+                    "data": image_base64,
+                },
+            },
+            {"type": "text", "text": user_message},
+        ]
+    else:
+        user_content = user_message
+
+    # Store text-only in persistent history (images are one-turn only)
     history.append({"role": "user", "content": user_message})
 
-    messages = [{"role": m["role"], "content": m["content"]} for m in history]
+    # For the actual API call, use multi-modal content on the last turn
+    messages = [{"role": m["role"], "content": m["content"]} for m in history[:-1]]
+    messages.append({"role": "user", "content": user_content})
+
     final_text = ""
 
     while True:

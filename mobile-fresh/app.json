@@ -1,30 +1,63 @@
 {
   "expo": {
-    "name": "mobile-fresh",
-    "slug": "mobile-fresh",
+    "name": "Personal Assistant",
+    "slug": "personal-assistant",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0a0f1e"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.saideep.personalassistant",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Personal Assistant to take photos to share with Claude",
+        "NSPhotoLibraryUsageDescription": "Allow Personal Assistant to access your photos to share with Claude",
+        "NSMicrophoneUsageDescription": "Allow Personal Assistant to access your microphone for voice input",
+        "NSSpeechRecognitionUsageDescription": "Allow Personal Assistant to use speech recognition for voice input"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0a0f1e"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.saideep.personalassistant",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Personal Assistant to access your photos",
+          "cameraPermission": "Allow Personal Assistant to take photos"
+        }
+      ],
+      "expo-notifications",
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow Personal Assistant to access your microphone",
+          "speechRecognitionPermission": "Allow Personal Assistant to use speech recognition"
+        }
+      ],
+      "react-native-android-widget"
+    ]
   }
 }

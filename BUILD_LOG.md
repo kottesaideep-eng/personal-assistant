@@ -422,6 +422,7 @@ Redesign mobile UI with polished chat interface
 | 35 | "it's connected" (new UI connected to Railway) |
 | 36 | "push the changes to github" |
 | 37 | "Could you document all the prompts used to build this app and the queries executed" |
+| 38 | "Implement the following plan: Add 6 New Features to Personal Assistant App" |
 
 ---
 
@@ -523,10 +524,16 @@ personal_assistant/
     └── src/
         ├── types.ts          # Message + HistoryItem interfaces
         ├── api.ts            # sendMessage() + checkHealth()
-        └── components/
-            ├── MessageBubble.tsx   # Markdown chat bubbles
-            ├── ChatInput.tsx       # Animated input + send button
-            └── SettingsModal.tsx   # Railway URL configuration
+        ├── components/
+        │   ├── MessageBubble.tsx   # Markdown chat bubbles + long-press copy/share + image
+        │   ├── ChatInput.tsx       # Camera button, image preview, mic button + voice
+        │   ├── SettingsModal.tsx   # Railway URL configuration
+        │   └── HistoryModal.tsx    # Saved conversation list
+        ├── utils/
+        │   ├── storage.ts          # Conversation save/load/list/delete (AsyncStorage)
+        │   └── notifications.ts    # Push token registration + local scheduling
+        └── widgets/
+            └── AssistantWidget.tsx # Android home screen widget
 ```
 
 ---
@@ -538,6 +545,91 @@ personal_assistant/
 | `ANTHROPIC_API_KEY` | Railway | Anthropic API key for Claude |
 | `TAVILY_API_KEY` | Railway | Tavily API key for web search |
 | `DATA_DIR` | Railway | `/data` — path to Railway persistent volume |
+
+---
+
+## Phase 7 — 6 New Features (Copy/Share, Chat History, Images, EAS Build, Voice, Push Notifications, Widget)
+
+### User Prompt
+```
+"Implement the following plan: Add 6 New Features to Personal Assistant App"
+```
+
+### Features Added
+
+#### Step 1 — Message Copy/Share
+- Long-press any message bubble → ActionSheetIOS (iOS) or Alert (Android) with "Copy text" / "Share" / "Cancel"
+- Uses `expo-clipboard` and `react-native`'s `Share` API
+- File: `src/components/MessageBubble.tsx`
+
+#### Step 2 — Chat History
+- Auto-saves conversation when tapping ✕ (if there are user messages)
+- 📋 history button in header opens `HistoryModal`
+- Conversations stored in AsyncStorage under `CONV_<timestamp>` keys with an index at `CONV_INDEX`
+- Tap to reload, long-press or 🗑 button to delete
+- Files: `src/utils/storage.ts` (NEW), `src/components/HistoryModal.tsx` (NEW)
+
+#### Step 3 — Image Sharing
+- 📷 camera button in input bar — opens photo library or camera
+- Selected image shown as thumbnail preview with ✕ to remove
+- Image sent as base64 in `image_base64` field to `/chat`
+- `assistant.py` builds multi-modal Claude content block (image + text) for the first turn; history remains text-only
+- Backend: `ChatRequest` extended with `image_base64` and `image_mime_type` fields
+
+#### Step 4 — EAS Build Setup
+- Created `mobile-fresh/eas.json` with development / preview / production profiles
+- Updated `app.json` with `bundleIdentifier` and `package` fields
+- Build commands: `eas build --platform ios --profile preview`
+
+#### Step 5 — Voice Input
+- 🎤 mic button appears when text input is empty
+- Hold to record, release to stop — `@react-native-voice/voice`
+- Pulsing red animation while recording
+- Speech result populates text input
+
+#### Step 6 — Push Notifications
+- On startup: `registerForPushNotificationsAsync()` → Expo push token → POST `/register-device`
+- APScheduler runs every 1 minute on backend, checks `reminders.json` for due items, sends via Expo Push API
+- New backend endpoint: `POST /register-device` saves token to `DATA_DIR/devices.json`
+- Files: `src/utils/notifications.ts` (NEW)
+
+#### Step 7 — Android Home Screen Widget
+- `AssistantWidget.tsx` using `react-native-android-widget`
+- Shows last message and "Open app →" tap target
+- File: `src/widgets/AssistantWidget.tsx` (NEW)
+
+### Packages Installed
+```bash
+# Expo SDK packages
+npx expo install expo-clipboard expo-image-picker expo-notifications expo-device
+
+# Native packages (require EAS build, not Expo Go)
+npm install @react-native-voice/voice react-native-android-widget
+```
+
+### Python Dependencies Added
+```
+apscheduler>=3.10.0
+httpx>=0.27.0
+```
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `mobile-fresh/App.tsx` | History button, auto-save on clear, push init, load conversation, image send |
+| `mobile-fresh/src/types.ts` | Add `imageUri?` to Message, add `ConversationSummary` type |
+| `mobile-fresh/src/api.ts` | Image params in `sendMessage()`, add `registerDevice()` |
+| `mobile-fresh/src/components/MessageBubble.tsx` | Long-press copy/share, render `imageUri` |
+| `mobile-fresh/src/components/ChatInput.tsx` | Camera button + preview, mic button + voice |
+| `mobile-fresh/src/utils/storage.ts` | NEW — conversation save/load/list/delete |
+| `mobile-fresh/src/utils/notifications.ts` | NEW — push token, local scheduling |
+| `mobile-fresh/src/components/HistoryModal.tsx` | NEW — conversation history list |
+| `mobile-fresh/src/widgets/AssistantWidget.tsx` | NEW — Android home screen widget |
+| `mobile-fresh/app.json` | Plugins for image-picker, notifications, voice, widget; permissions; dark UI |
+| `mobile-fresh/eas.json` | NEW — EAS build configuration |
+| `server.py` | Image fields in ChatRequest, /register-device, APScheduler for reminders |
+| `assistant.py` | Multi-modal content block support (image + text) |
+| `requirements.txt` | apscheduler, httpx |
 
 ---
 
