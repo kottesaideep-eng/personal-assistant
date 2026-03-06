@@ -859,3 +859,26 @@ of crashing.
 | File | Change |
 |------|--------|
 | `mobile-fresh/src/components/ChatInput.tsx` | Dynamic `require()` for Voice module; null-guards on all Voice API calls; user-facing alert when Voice is unavailable |
+
+---
+
+## Phase 12 — Expo Go Compatibility: Notifications & Siri Shortcut
+
+### User Prompt
+```
+"continue where we left off"
+```
+
+### What Was Fixed
+Additional Expo Go compatibility fixes for modules that are native-only:
+
+- **`expo-notifications`**: Wrapped `setNotificationHandler()` in `try/catch` so the app doesn't crash on launch in Expo Go where the native module is absent.
+- **`react-native-siri-shortcut`**: Improved error handling — instead of silently swallowing the error, now shows an `Alert` telling the user to install the EAS build.
+- **`app.json`**: Fixed plugin config — removed broken `@bacons/apple-targets` entry, corrected `react-native-android-widget` config format with empty `widgets: []`.
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `mobile-fresh/src/utils/notifications.ts` | Wrapped `setNotificationHandler` in try/catch |
+| `mobile-fresh/src/utils/shortcut.ts` | Alert user when Siri shortcut unavailable in Expo Go |
+| `mobile-fresh/app.json` | Remove `@bacons/apple-targets`; fix android-widget plugin config |
