@@ -71,11 +71,10 @@
           "speechRecognitionPermission": "Allow Roar to use speech recognition"
         }
       ],
-      "react-native-android-widget",
       [
-        "@bacons/apple-targets",
+        "react-native-android-widget",
         {
-          "appleTeamId": "REPLACE_WITH_YOUR_TEAM_ID"
+          "widgets": []
         }
       ]
     ]

@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 
 export const Roar_ACTIVITY_TYPE = "com.saideep.personalassistant.voice";
 export const Roar_PHRASE = "Roar";
@@ -30,12 +30,16 @@ export function presentAddToSiriDialog(
 ): void {
   if (Platform.OS !== "ios") return;
   try {
-    const { presentShortcut } = require("react-native-siri-shortcut");
-    presentShortcut(shortcutOptions, (data: { status: "added" | "updated" | "deleted" | "cancelled" }) => {
+    const mod = require("react-native-siri-shortcut");
+    if (!mod?.presentShortcut) throw new Error("not available");
+    mod.presentShortcut(shortcutOptions, (data: { status: "added" | "updated" | "deleted" | "cancelled" }) => {
       onResult(data.status);
     });
   } catch {
-    // Not available
+    Alert.alert(
+      "Requires a Full Build",
+      '"Add to Siri" is not available in Expo Go. Install the EAS build to use this feature.'
+    );
   }
 }
 
