@@ -25,6 +25,7 @@ import MessageBubble from "./src/components/MessageBubble";
 import ChatInput from "./src/components/ChatInput";
 import SettingsModal from "./src/components/SettingsModal";
 import HistoryModal from "./src/components/HistoryModal";
+import PendingRepliesModal from "./src/components/PendingRepliesModal";
 
 const BACKEND_URL_KEY = "BACKEND_URL";
 let msgCounter = 0;
@@ -95,6 +96,8 @@ export default function App() {
   const [backendUrl, setBackendUrl] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showPendingReplies, setShowPendingReplies] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const [autoVoice, setAutoVoice] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
@@ -142,8 +145,11 @@ export default function App() {
     });
 
     // Handle notification tap-to-open
-    const responseSub = Notifications.addNotificationResponseReceivedListener((_response) => {
-      // Open app (already happens by default); could navigate to specific screen
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      if (data?.type === "pending_reply") {
+        setShowPendingReplies(true);
+      }
     });
     return () => responseSub.remove();
   }, [backendUrl]);
@@ -154,6 +160,24 @@ export default function App() {
       setMessages([{ ...WELCOME_MESSAGE, id: newId(), timestamp: Date.now() }]);
     }
   }, [backendUrl]);
+
+  // Background badge poll: refresh pending count every 30s when modal is closed
+  useEffect(() => {
+    if (!backendUrl || showPendingReplies) return;
+    const poll = async () => {
+      try {
+        const resp = await fetch(`${backendUrl}/pending-replies`);
+        if (resp.ok) {
+          const data = await resp.json();
+          const count = data.filter((r: { status: string }) => r.status === "pending").length;
+          setPendingCount(count);
+        }
+      } catch (_) {}
+    };
+    poll();
+    const id = setInterval(poll, 30000);
+    return () => clearInterval(id);
+  }, [backendUrl, showPendingReplies]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
@@ -243,6 +267,16 @@ export default function App() {
           <TouchableOpacity onPress={handleClear} style={styles.iconBtn}>
             <Text style={styles.iconBtnText}>✕</Text>
           </TouchableOpacity>
+          <View>
+            <TouchableOpacity onPress={() => setShowPendingReplies(true)} style={styles.iconBtn}>
+              <Text style={styles.iconBtnText}>📥</Text>
+            </TouchableOpacity>
+            {pendingCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{pendingCount > 99 ? "99+" : pendingCount}</Text>
+              </View>
+            )}
+          </View>
           <TouchableOpacity onPress={() => setShowHistory(true)} style={styles.iconBtn}>
             <Text style={styles.iconBtnText}>📋</Text>
           </TouchableOpacity>
@@ -293,6 +327,13 @@ export default function App() {
         onNewChat={() => { setShowHistory(false); handleClear(); }}
         onLoadConversation={handleLoadConversation}
       />
+
+      <PendingRepliesModal
+        visible={showPendingReplies}
+        backendUrl={backendUrl}
+        onClose={() => setShowPendingReplies(false)}
+        onCountChange={setPendingCount}
+      />
     </SafeAreaView>
   );
 }
@@ -325,6 +366,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#1e293b", alignItems: "center", justifyContent: "center",
   },
   iconBtnText: { fontSize: 16 },
+
+  badge: {
+    position: "absolute", top: -4, right: -4,
+    backgroundColor: "#ef4444", borderRadius: 8,
+    minWidth: 16, height: 16,
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
 
   list: { paddingVertical: 16, paddingBottom: 8, flexGrow: 1 },
 

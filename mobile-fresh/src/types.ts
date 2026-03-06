@@ -18,3 +18,15 @@ export interface ConversationSummary {
   timestamp: number;
   messageCount: number;
 }
+
+export interface PendingReplyRecord {
+  id: string;
+  sender_name: string;
+  sender_handle: string;
+  chat_id: string;
+  original_message: string;
+  draft_reply: string;
+  status: string;
+  approved_text: string | null;
+  created_at: string;
+}

@@ -783,6 +783,61 @@ persistent and don't require entering credentials on every push.
 
 ---
 
+## Phase 11 — Mac iMessage Companion + Approval Flow
+
+### User Prompt
+```
+"Implement the following plan: Mac iMessage Companion + Approval Flow"
+```
+
+### What Was Built
+Roar can now read incoming iMessages on Mac, draft AI replies, push them to the
+iPhone for review/editing, and send with one tap.
+
+### Flow
+```
+chat.db new message
+  → companion.py reads it
+  → calls /chat for draft
+  → POST /pending-reply (Railway)
+  → push notification → iPhone
+  → user opens 📥 inbox in app, edits if needed, taps Send
+  → PATCH /pending-reply/{id}/approve
+  → companion.py polls and sees it
+  → AppleScript sends via Messages.app
+```
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `mac-companion/companion.py` | Two-thread daemon: watches chat.db (3s poll) + sends approved replies via AppleScript (5s poll) |
+| `mac-companion/requirements.txt` | `requests>=2.31.0` |
+| `mac-companion/start.sh` | Creates venv, installs deps, prints permission instructions, runs companion.py |
+| `mobile-fresh/src/components/PendingRepliesModal.tsx` | Bottom-sheet modal: FlatList of pending reply cards with editable draft, Send + Dismiss buttons, auto-refresh every 5s |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server.py` | Added `import uuid`, `datetime`, `PENDING_REPLIES_FILE`; added `PendingReply`, `ApproveRequest`, `PushNotifyRequest` models; added 5 new endpoints |
+| `mobile-fresh/src/types.ts` | Added `PendingReplyRecord` interface |
+| `mobile-fresh/App.tsx` | Import `PendingRepliesModal`; state `showPendingReplies`, `pendingCount`; 📥 inbox button with red badge; notification tap handler opens inbox on `type==="pending_reply"`; 30s background badge poll; render `<PendingRepliesModal>` |
+
+### New Backend Endpoints
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /pending-reply` | Create pending reply record (status="pending", uuid id, utc timestamp) |
+| `GET /pending-replies` | Return all non-dismissed records (status != "dismissed") |
+| `PATCH /pending-reply/{id}/approve` | Set status="approved", store approved_text |
+| `PATCH /pending-reply/{id}/dismiss` | Set status="dismissed" |
+| `POST /push-notify` | Send push to all registered devices via Expo Push API |
+
+### Mac Setup (one-time)
+1. System Settings → Privacy & Security → **Full Disk Access** → add Terminal
+2. System Settings → Privacy & Security → **Automation** → Terminal → Messages ✓
+3. `cd ~/personal_assistant/mac-companion && ./start.sh`
+
+---
+
 ## Phase 10 — Expo Go Compatibility Fix for Voice Input
 
 ### User Prompt

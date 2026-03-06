@@ -3,6 +3,8 @@
 import asyncio
 import json
 import os
+import uuid
+from datetime import datetime
 from typing import List, Optional
 
 import httpx
@@ -26,6 +28,7 @@ app.add_middleware(
 DATA_DIR = os.environ.get("DATA_DIR", "./data")
 DEVICES_FILE = os.path.join(DATA_DIR, "devices.json")
 REMINDERS_FILE = os.path.join(DATA_DIR, "reminders.json")
+PENDING_REPLIES_FILE = os.path.join(DATA_DIR, "pending_replies.json")
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -50,6 +53,24 @@ class ChatResponse(BaseModel):
 class DeviceRegistration(BaseModel):
     token: str
     platform: str  # "ios" | "android"
+
+
+class PendingReply(BaseModel):
+    sender_name: str
+    sender_handle: str
+    chat_id: str
+    original_message: str
+    draft_reply: str
+
+
+class ApproveRequest(BaseModel):
+    approved_text: str
+
+
+class PushNotifyRequest(BaseModel):
+    title: str
+    body: str
+    data: Optional[dict] = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -103,6 +124,78 @@ async def register_device(reg: DeviceRegistration):
     devices.append({"token": reg.token, "platform": reg.platform})
     _save_json(DEVICES_FILE, devices)
     return {"status": "registered"}
+
+
+@app.post("/pending-reply")
+async def create_pending_reply(req: PendingReply):
+    records = _load_json(PENDING_REPLIES_FILE, [])
+    record = {
+        "id": str(uuid.uuid4()),
+        "sender_name": req.sender_name,
+        "sender_handle": req.sender_handle,
+        "chat_id": req.chat_id,
+        "original_message": req.original_message,
+        "draft_reply": req.draft_reply,
+        "status": "pending",
+        "approved_text": None,
+        "created_at": datetime.utcnow().isoformat() + "Z",
+    }
+    records.append(record)
+    _save_json(PENDING_REPLIES_FILE, records)
+    return record
+
+
+@app.get("/pending-replies")
+async def get_pending_replies():
+    records = _load_json(PENDING_REPLIES_FILE, [])
+    return [r for r in records if r.get("status") != "dismissed"]
+
+
+@app.patch("/pending-reply/{reply_id}/approve")
+async def approve_pending_reply(reply_id: str, req: ApproveRequest):
+    records = _load_json(PENDING_REPLIES_FILE, [])
+    for r in records:
+        if r["id"] == reply_id:
+            r["status"] = "approved"
+            r["approved_text"] = req.approved_text
+            _save_json(PENDING_REPLIES_FILE, records)
+            return r
+    raise HTTPException(status_code=404, detail="Reply not found")
+
+
+@app.patch("/pending-reply/{reply_id}/dismiss")
+async def dismiss_pending_reply(reply_id: str):
+    records = _load_json(PENDING_REPLIES_FILE, [])
+    for r in records:
+        if r["id"] == reply_id:
+            r["status"] = "dismissed"
+            _save_json(PENDING_REPLIES_FILE, records)
+            return r
+    raise HTTPException(status_code=404, detail="Reply not found")
+
+
+@app.post("/push-notify")
+async def push_notify(req: PushNotifyRequest):
+    devices = _load_json(DEVICES_FILE, [])
+    tokens = [d["token"] for d in devices if d.get("token")]
+    if not tokens:
+        return {"sent": 0}
+    sent = 0
+    async with httpx.AsyncClient() as client:
+        for token in tokens:
+            payload = {
+                "to": token,
+                "title": req.title,
+                "body": req.body,
+                "sound": "default",
+                "data": req.data or {},
+            }
+            try:
+                await client.post("https://exp.host/--/api/v2/push/send", json=payload)
+                sent += 1
+            except Exception:
+                pass
+    return {"sent": sent}
 
 
 @app.get("/send-due-reminders")
