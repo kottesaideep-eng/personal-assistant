@@ -11,7 +11,13 @@ import {
   Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import Voice from "@react-native-voice/voice";
+
+// Voice is a native-only module — not available in Expo Go.
+// Load it dynamically so the app doesn't crash when it's missing.
+let Voice: any = null;
+try {
+  Voice = require("@react-native-voice/voice").default;
+} catch {}
 
 interface PendingImage {
   uri: string;
@@ -32,18 +38,15 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Voice setup
+  // Voice setup — skip if native module unavailable (Expo Go)
   useEffect(() => {
-    Voice.onSpeechResults = (e) => {
-      if (e.value && e.value.length > 0) {
-        setText(e.value[0]);
-      }
+    if (!Voice) return;
+    Voice.onSpeechResults = (e: any) => {
+      if (e.value && e.value.length > 0) setText(e.value[0]);
     };
-    Voice.onSpeechError = (e) => {
+    Voice.onSpeechError = (e: any) => {
       setIsRecording(false);
-      if (e.error?.message) {
-        Alert.alert("Speech recognition error", e.error.message);
-      }
+      if (e.error?.message) Alert.alert("Speech recognition error", e.error.message);
     };
     Voice.onSpeechEnd = () => setIsRecording(false);
     return () => {
@@ -126,6 +129,7 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
   };
 
   const handleMicPressIn = async () => {
+    if (!Voice) { Alert.alert("Not available", "Voice input requires a full build (not Expo Go)."); return; }
     try {
       setIsRecording(true);
       await Voice.start("en-US");
@@ -135,6 +139,7 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
   };
 
   const handleMicPressOut = async () => {
+    if (!Voice) return;
     try {
       await Voice.stop();
     } catch {

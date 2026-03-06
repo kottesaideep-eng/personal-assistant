@@ -780,3 +780,27 @@ Expo Go.
 ### Why SSH Keys for GitHub?
 HTTPS personal access tokens expire or require re-entry. SSH keys are
 persistent and don't require entering credentials on every push.
+
+---
+
+## Phase 10 — Expo Go Compatibility Fix for Voice Input
+
+### User Prompt
+```
+"commit the fix and push"
+```
+
+### What Was Fixed
+`@react-native-voice/voice` is a native module that is not bundled in Expo Go.
+Previously the app crashed immediately on launch in Expo Go because the module
+import threw at the top of `ChatInput.tsx`.
+
+The fix lazy-loads Voice with a `try/catch` so the import failure is silently
+caught. All voice-dependent code paths are guarded with `if (!Voice) ...` so
+the app runs normally in Expo Go — voice buttons show a friendly alert instead
+of crashing.
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `mobile-fresh/src/components/ChatInput.tsx` | Dynamic `require()` for Voice module; null-guards on all Voice API calls; user-facing alert when Voice is unavailable |
