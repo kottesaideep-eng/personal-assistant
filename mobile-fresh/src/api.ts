@@ -74,6 +74,21 @@ export async function explorePlayground(
   }
 }
 
+export interface Suggestion {
+  text: string;
+  category: string;
+}
+
+export async function getSuggestions(baseUrl: string): Promise<Suggestion[]> {
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/suggestions`);
+    if (!response.ok) return [];
+    return response.json();
+  } catch {
+    return [];
+  }
+}
+
 export async function getAiFeed(baseUrl: string): Promise<AiFeedItem[]> {
   try {
     const response = await fetch(`${baseUrl.replace(/\/$/, "")}/ai-feed`);

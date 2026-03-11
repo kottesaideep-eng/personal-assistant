@@ -15,6 +15,14 @@ import { AiFeedItem } from "../types";
 import { getAiFeed, refreshAiFeed } from "../api";
 import PlaygroundModal from "./PlaygroundModal";
 
+function cardQuestions(item: AiFeedItem): string[] {
+  return [
+    `How do I get started with ${item.title}?`,
+    `How does ${item.title} compare to alternatives?`,
+    `Can I integrate ${item.title} into a Python project?`,
+  ];
+}
+
 const CATEGORY_META: Record<string, { emoji: string; color: string }> = {
   model:   { emoji: "🧠", color: "#6366f1" },
   tool:    { emoji: "🔧", color: "#0ea5e9" },
@@ -35,6 +43,12 @@ export default function AiFeedModal({ visible, onClose, backendUrl }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [lastFetched, setLastFetched] = useState<string | null>(null);
   const [playgroundTool, setPlaygroundTool] = useState<AiFeedItem | null>(null);
+  const [playgroundInitialQ, setPlaygroundInitialQ] = useState<string | undefined>();
+
+  const openPlayground = (item: AiFeedItem, question?: string) => {
+    setPlaygroundInitialQ(question);
+    setPlaygroundTool(item);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,11 +90,18 @@ export default function AiFeedModal({ visible, onClose, backendUrl }: Props) {
           <Text style={styles.whyLabel}>Why useful →</Text>
           <Text style={styles.whyText}>{item.why_useful}</Text>
         </View>
+        <View style={styles.questionsRow}>
+          {cardQuestions(item).map((q) => (
+            <TouchableOpacity key={q} style={styles.questionChip} onPress={() => openPlayground(item, q)}>
+              <Text style={styles.questionChipText} numberOfLines={2}>💬 {q}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         <View style={styles.cardFooter}>
           <Text style={styles.cardUrl} numberOfLines={1}>{item.url}</Text>
           <TouchableOpacity
             style={styles.tryBtn}
-            onPress={() => setPlaygroundTool(item)}
+            onPress={() => openPlayground(item)}
           >
             <Text style={styles.tryBtnText}>🧪 Try It</Text>
           </TouchableOpacity>
@@ -132,9 +153,10 @@ export default function AiFeedModal({ visible, onClose, backendUrl }: Props) {
 
       <PlaygroundModal
         visible={playgroundTool !== null}
-        onClose={() => setPlaygroundTool(null)}
+        onClose={() => { setPlaygroundTool(null); setPlaygroundInitialQ(undefined); }}
         backendUrl={backendUrl}
         tool={playgroundTool}
+        initialQuestion={playgroundInitialQ}
       />
     </Modal>
   );
@@ -171,6 +193,9 @@ const styles = StyleSheet.create({
   cardUrl: { fontSize: 11, color: "#475569", flex: 1, marginRight: 10 },
   tryBtn: { backgroundColor: "#6366f1", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
   tryBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  questionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  questionChip: { backgroundColor: "#0f172a", borderWidth: 1, borderColor: "#334155", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, maxWidth: "100%" },
+  questionChipText: { fontSize: 11, color: "#94a3b8" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   loadingText: { color: "#64748b", fontSize: 14 },
   emptyEmoji: { fontSize: 48 },

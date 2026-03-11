@@ -30,6 +30,7 @@ DEVICES_FILE = os.path.join(DATA_DIR, "devices.json")
 REMINDERS_FILE = os.path.join(DATA_DIR, "reminders.json")
 PENDING_REPLIES_FILE = os.path.join(DATA_DIR, "pending_replies.json")
 AI_FEED_FILE = os.path.join(DATA_DIR, "ai_feed.json")
+SUGGESTIONS_FILE = os.path.join(DATA_DIR, "suggestions.json")
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -366,6 +367,93 @@ Search results:
     return feed
 
 
+@app.get("/suggestions")
+async def get_suggestions():
+    """Return daily cached question prompts based on current news."""
+    cached = _load_json(SUGGESTIONS_FILE, {})
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    if cached.get("date") == today and cached.get("items"):
+        return cached["items"]
+    # Fetch fresh
+    items = await _fetch_suggestions()
+    return items
+
+
+@app.post("/suggestions/refresh")
+async def refresh_suggestions():
+    items = await _fetch_suggestions()
+    return {"count": len(items)}
+
+
+async def _fetch_suggestions() -> list[dict]:
+    import anthropic as _anthropic
+
+    tavily_key = os.environ.get("TAVILY_API_KEY")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not tavily_key or not anthropic_key:
+        return []
+
+    search_queries = [
+        "biggest tech and AI news today",
+        "trending technology topics this week",
+        "new AI tools products launched this week",
+        "world news highlights today",
+    ]
+
+    raw: list[str] = []
+    async with httpx.AsyncClient(timeout=15) as client:
+        for q in search_queries:
+            try:
+                resp = await client.post(
+                    "https://api.tavily.com/search",
+                    json={"query": q, "max_results": 4, "search_depth": "basic"},
+                    headers={"Authorization": f"Bearer {tavily_key}"},
+                )
+                for r in resp.json().get("results", []):
+                    raw.append(f"{r.get('title','')} — {r.get('content','')[:200]}")
+            except Exception as e:
+                print(f"[suggestions] search error: {e}")
+
+    if not raw:
+        return []
+
+    snippets = "\n".join(f"- {r}" for r in raw[:20])
+    prompt = f"""You are generating tappable question prompts for a personal assistant app.
+Based on the news snippets below, generate 10 short, curiosity-sparking questions a user might want to ask their AI assistant.
+
+Rules:
+- Each question should be under 60 characters
+- Mix categories: AI/tech, world news, science, business, trending topics
+- Make them feel natural and conversational
+- Each has a category: one of "AI", "Tech", "News", "Science", "Business", "Trending"
+
+News snippets:
+{snippets}
+
+Return a JSON array only (no markdown), each item: {{"text": "...", "category": "..."}}"""
+
+    try:
+        ac = _anthropic.Anthropic(api_key=anthropic_key)
+        msg = await asyncio.to_thread(
+            lambda: ac.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=800,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        )
+        raw_text = msg.content[0].text.strip()
+        raw_text = raw_text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        items = json.loads(raw_text)
+    except Exception as e:
+        print(f"[suggestions] Claude error: {e}")
+        return []
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    _save_json(SUGGESTIONS_FILE, {"date": today, "items": items})
+    print(f"[suggestions] Saved {len(items)} prompts")
+    return items
+
+
 @app.post("/playground/explore")
 async def playground_explore(req: PlaygroundRequest):
     """Generate an integration guide for a given AI tool using Claude."""
@@ -477,8 +565,8 @@ async def refresh_ai_feed():
 async def start_scheduler():
     scheduler = AsyncIOScheduler()
     scheduler.add_job(_dispatch_due_reminders, "interval", minutes=1)
-    # Refresh AI feed daily at 8 AM UTC
     scheduler.add_job(_fetch_ai_feed, "cron", hour=8, minute=0)
+    scheduler.add_job(_fetch_suggestions, "cron", hour=7, minute=0)
     scheduler.start()
 
 

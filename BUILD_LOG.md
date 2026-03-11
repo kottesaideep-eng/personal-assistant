@@ -956,3 +956,49 @@ to ask Claude to customize it for your specific needs.
 | `mobile-fresh/src/api.ts` | `PlaygroundGuide` interface, `explorePlayground()` |
 | `mobile-fresh/src/components/AiFeedModal.tsx` | "🧪 Try It" button on each card, mounts `PlaygroundModal` |
 | `mobile-fresh/src/components/PlaygroundModal.tsx` | New — Guide tab (code blocks, tips) + Ask Claude chat tab |
+
+---
+
+## Phase 15 — Suggestion Chips & Contextual Question Prompts
+
+### User Prompt
+```
+"Could you also add in to all the pages, like articles coming up, just
+prompting users to ask any questions and whats happening around"
+```
+
+### What Was Built
+Dynamic question prompts across the entire app so users are always one tap
+away from asking about current events or any tool in their feed.
+
+**Main Chat — SuggestionBar:**
+- Persistent horizontal chip bar above the input, always visible
+- Fetches live prompts daily from `GET /suggestions` (Tavily news + Claude Haiku)
+- Falls back to static prompts instantly while network loads
+- Tap any chip → auto-sends as a chat message
+
+**AI Radar Cards — Question Chips:**
+- Each feed card shows 3 contextual question chips (e.g. "How do I get started with X?")
+- Tap a chip → opens PlaygroundModal directly on the **Ask Claude** chat tab
+- The question is pre-filled so the user just hits send
+
+**Backend — `/suggestions` endpoint:**
+- Searches 4 news categories via Tavily daily
+- Claude Haiku generates 10 curiosity-sparking prompts with categories
+- Cached by date; refreshed daily at 7 AM UTC
+
+### New Backend Endpoints
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /suggestions` | Return daily cached question prompts |
+| `POST /suggestions/refresh` | Force refresh |
+
+### Files Modified/Created
+| File | Change |
+|------|--------|
+| `server.py` | `SUGGESTIONS_FILE`, `_fetch_suggestions()`, `/suggestions`, `/suggestions/refresh`, daily cron |
+| `mobile-fresh/src/api.ts` | `Suggestion` interface, `getSuggestions()` |
+| `mobile-fresh/src/components/SuggestionBar.tsx` | New — horizontal chip bar with live prompts |
+| `mobile-fresh/src/components/AiFeedModal.tsx` | Question chips on each card, `openPlayground()` with initial question |
+| `mobile-fresh/src/components/PlaygroundModal.tsx` | `initialQuestion` prop — auto-opens chat tab + pre-fills input |
+| `mobile-fresh/App.tsx` | Import + render `<SuggestionBar>` above ChatInput |

@@ -24,6 +24,7 @@ interface Props {
   onClose: () => void;
   backendUrl: string;
   tool: AiFeedItem | null;
+  initialQuestion?: string;
 }
 
 type Tab = "guide" | "chat";
@@ -57,7 +58,7 @@ const codeStyles = StyleSheet.create({
   code: { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", fontSize: 12, color: "#e2e8f0", padding: 12, lineHeight: 18 },
 });
 
-export default function PlaygroundModal({ visible, onClose, backendUrl, tool }: Props) {
+export default function PlaygroundModal({ visible, onClose, backendUrl, tool, initialQuestion }: Props) {
   const [tab, setTab] = useState<Tab>("guide");
   const [guide, setGuide] = useState<PlaygroundGuide | null>(null);
   const [loadingGuide, setLoadingGuide] = useState(false);
@@ -71,11 +72,11 @@ export default function PlaygroundModal({ visible, onClose, backendUrl, tool }: 
 
   useEffect(() => {
     if (!visible || !tool) return;
-    setTab("guide");
+    setTab(initialQuestion ? "chat" : "guide");
     setGuide(null);
     setChatMessages([]);
     setChatHistory([]);
-    setChatInput("");
+    setChatInput(initialQuestion ?? "");
     loadGuide();
   }, [visible, tool?.id]);
 

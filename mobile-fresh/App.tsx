@@ -27,6 +27,7 @@ import SettingsModal from "./src/components/SettingsModal";
 import HistoryModal from "./src/components/HistoryModal";
 import PendingRepliesModal from "./src/components/PendingRepliesModal";
 import AiFeedModal from "./src/components/AiFeedModal";
+import SuggestionBar from "./src/components/SuggestionBar";
 
 const BACKEND_URL_KEY = "BACKEND_URL";
 let msgCounter = 0;
@@ -318,6 +319,7 @@ export default function App() {
         />
 
         {loading && <TypingIndicator />}
+        <SuggestionBar backendUrl={backendUrl} onSelect={(prompt) => handleSend(prompt)} />
         <ChatInput onSend={handleSend} disabled={loading} autoActivateMic={autoVoice} />
       </KeyboardAvoidingView>
 
