@@ -84,6 +84,14 @@ class AiFeedItem(BaseModel):
     fetched_at: str
 
 
+class PlaygroundRequest(BaseModel):
+    title: str
+    summary: str
+    category: str
+    url: str
+    why_useful: str
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _load_json(path: str, default):
@@ -356,6 +364,82 @@ Search results:
     _save_json(AI_FEED_FILE, feed)
     print(f"[ai-feed] Saved {len(feed)} items")
     return feed
+
+
+@app.post("/playground/explore")
+async def playground_explore(req: PlaygroundRequest):
+    """Generate an integration guide for a given AI tool using Claude."""
+    import anthropic as _anthropic
+
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not anthropic_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set")
+
+    # Fetch a bit more context from the URL via Tavily if possible
+    extra_context = ""
+    tavily_key = os.environ.get("TAVILY_API_KEY")
+    if tavily_key:
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    "https://api.tavily.com/search",
+                    json={"query": f"{req.title} getting started tutorial documentation", "max_results": 3, "search_depth": "basic"},
+                    headers={"Authorization": f"Bearer {tavily_key}"},
+                )
+                results = resp.json().get("results", [])
+                extra_context = "\n".join(
+                    f"- {r['title']}: {r['content'][:300]}" for r in results
+                )
+        except Exception:
+            pass
+
+    prompt = f"""You are an expert developer helping someone integrate a new AI tool into their projects.
+
+Tool details:
+- Name: {req.title}
+- Category: {req.category}
+- Summary: {req.summary}
+- Why useful: {req.why_useful}
+- URL: {req.url}
+
+Additional context from docs/web:
+{extra_context or "Not available"}
+
+The user's existing app is called "Roar" — a personal assistant with:
+- Python FastAPI backend (with Anthropic Claude + Tavily web search)
+- React Native mobile app (Expo SDK 54)
+- Deployed on Railway
+
+Generate a practical integration guide as a JSON object with these exact fields:
+- "overview": 2-3 sentence plain-English explanation of what this tool does and its best use case
+- "install": the exact install command(s) as a single string (e.g. "pip install x" or "npm install x")
+- "quickstart": a self-contained working code snippet (15-30 lines) showing the most useful thing you can do with this tool
+- "roar_integration": a concrete code snippet showing how to add this tool to the Roar Python backend (as a new endpoint or tool function)
+- "standalone": a complete minimal standalone script or app (Python preferred, or JS if it's a JS-only tool) that the user can run immediately to try the tool
+- "tips": array of 3 practical tips or gotchas for using this tool effectively
+- "chat_starter": a one-sentence opening message the assistant should say when the user wants to chat about this tool
+
+Return JSON only, no markdown fences, no explanation outside the JSON."""
+
+    try:
+        ac = _anthropic.Anthropic(api_key=anthropic_key)
+        msg = await asyncio.to_thread(
+            lambda: ac.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        )
+        guide = json.loads(msg.content[0].text)
+    except json.JSONDecodeError:
+        # Claude returned markdown fences — strip them
+        raw = msg.content[0].text
+        raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        guide = json.loads(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Guide generation failed: {e}")
+
+    return guide
 
 
 @app.get("/ai-feed")

@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { AiFeedItem } from "../types";
 import { getAiFeed, refreshAiFeed } from "../api";
+import PlaygroundModal from "./PlaygroundModal";
 
 const CATEGORY_META: Record<string, { emoji: string; color: string }> = {
   model:   { emoji: "🧠", color: "#6366f1" },
@@ -33,6 +34,7 @@ export default function AiFeedModal({ visible, onClose, backendUrl }: Props) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastFetched, setLastFetched] = useState<string | null>(null);
+  const [playgroundTool, setPlaygroundTool] = useState<AiFeedItem | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,7 +76,15 @@ export default function AiFeedModal({ visible, onClose, backendUrl }: Props) {
           <Text style={styles.whyLabel}>Why useful →</Text>
           <Text style={styles.whyText}>{item.why_useful}</Text>
         </View>
-        <Text style={styles.cardUrl} numberOfLines={1}>{item.url}</Text>
+        <View style={styles.cardFooter}>
+          <Text style={styles.cardUrl} numberOfLines={1}>{item.url}</Text>
+          <TouchableOpacity
+            style={styles.tryBtn}
+            onPress={() => setPlaygroundTool(item)}
+          >
+            <Text style={styles.tryBtnText}>🧪 Try It</Text>
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -119,6 +129,13 @@ export default function AiFeedModal({ visible, onClose, backendUrl }: Props) {
           />
         )}
       </SafeAreaView>
+
+      <PlaygroundModal
+        visible={playgroundTool !== null}
+        onClose={() => setPlaygroundTool(null)}
+        backendUrl={backendUrl}
+        tool={playgroundTool}
+      />
     </Modal>
   );
 }
@@ -150,7 +167,10 @@ const styles = StyleSheet.create({
   },
   whyLabel: { fontSize: 10, color: "#6366f1", fontWeight: "700", marginBottom: 2, textTransform: "uppercase" },
   whyText: { fontSize: 12, color: "#cbd5e1", lineHeight: 17 },
-  cardUrl: { fontSize: 11, color: "#475569" },
+  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cardUrl: { fontSize: 11, color: "#475569", flex: 1, marginRight: 10 },
+  tryBtn: { backgroundColor: "#6366f1", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
+  tryBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   loadingText: { color: "#64748b", fontSize: 14 },
   emptyEmoji: { fontSize: 48 },

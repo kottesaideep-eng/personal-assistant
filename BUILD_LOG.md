@@ -920,3 +920,39 @@ them as a beautiful card feed in the Roar app.
 | `mobile-fresh/src/api.ts` | Added `getAiFeed()`, `refreshAiFeed()` |
 | `mobile-fresh/src/components/AiFeedModal.tsx` | New — card feed UI with category badges, pull-to-refresh |
 | `mobile-fresh/App.tsx` | 📡 button in header, `showAiFeed` state, `AiFeedModal` render, notification tap handler |
+
+---
+
+## Phase 14 — AI Integration Playground
+
+### User Prompt
+```
+"Could you also build me a playground kind of thing, where you can show me
+on how to integrate the new plugins or applications within my own application
+or create a new copy of it to be utilized by me"
+```
+
+### What Was Built
+An **AI Integration Playground** accessible from every AI Radar feed card.
+Tap "🧪 Try It" on any tool to get a full integration guide + a live chat
+to ask Claude to customize it for your specific needs.
+
+### How It Works
+1. Tap **🧪 Try It** on any AI Radar card
+2. Backend fetches extra docs via Tavily, then Claude Sonnet generates a structured guide
+3. **Guide tab** shows: Overview, Install command (copyable), Quick Start code, Roar-specific integration snippet, Standalone script, and Tips
+4. **Ask Claude tab** — a full chat pre-seeded with tool context; ask "add this to my backend", "show me a React Native version", etc.
+5. All code blocks are copyable with one tap
+
+### New Backend Endpoint
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /playground/explore` | Takes tool details, returns structured integration guide via Claude Sonnet |
+
+### Files Modified/Created
+| File | Change |
+|------|--------|
+| `server.py` | `PlaygroundRequest` model, `/playground/explore` endpoint |
+| `mobile-fresh/src/api.ts` | `PlaygroundGuide` interface, `explorePlayground()` |
+| `mobile-fresh/src/components/AiFeedModal.tsx` | "🧪 Try It" button on each card, mounts `PlaygroundModal` |
+| `mobile-fresh/src/components/PlaygroundModal.tsx` | New — Guide tab (code blocks, tips) + Ask Claude chat tab |

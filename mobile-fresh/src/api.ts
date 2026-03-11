@@ -41,6 +41,39 @@ export async function checkHealth(baseUrl: string): Promise<boolean> {
   }
 }
 
+export interface PlaygroundGuide {
+  overview: string;
+  install: string;
+  quickstart: string;
+  roar_integration: string;
+  standalone: string;
+  tips: string[];
+  chat_starter: string;
+}
+
+export async function explorePlayground(
+  baseUrl: string,
+  item: AiFeedItem
+): Promise<PlaygroundGuide | null> {
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/playground/explore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: item.title,
+        summary: item.summary,
+        category: item.category,
+        url: item.url,
+        why_useful: item.why_useful,
+      }),
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function getAiFeed(baseUrl: string): Promise<AiFeedItem[]> {
   try {
     const response = await fetch(`${baseUrl.replace(/\/$/, "")}/ai-feed`);
