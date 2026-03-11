@@ -882,3 +882,41 @@ Additional Expo Go compatibility fixes for modules that are native-only:
 | `mobile-fresh/src/utils/notifications.ts` | Wrapped `setNotificationHandler` in try/catch |
 | `mobile-fresh/src/utils/shortcut.ts` | Alert user when Siri shortcut unavailable in Expo Go |
 | `mobile-fresh/app.json` | Remove `@bacons/apple-targets`; fix android-widget plugin config |
+
+---
+
+## Phase 13 — AI Radar Feed
+
+### User Prompt
+```
+"i want to build something that keeps me posted on any new developments on AI,
+which give me feed of any new applications or opensource items developed that
+i can utilize, and allows me to integrate it for my use"
+```
+
+### What Was Built
+A personal AI news feed — **AI Radar** — that searches the web for the latest AI tools,
+models, libraries, and open-source projects, summarizes them with Claude, and delivers
+them as a beautiful card feed in the Roar app.
+
+### How It Works
+1. Backend searches Tavily across 4 curated queries (new tools, HuggingFace models, GitHub trending, AI APIs)
+2. Claude Haiku deduplicates and structures results into feed cards with title, summary, category, and "why useful"
+3. Feed is cached in `ai_feed.json` and refreshed daily at 8 AM UTC via scheduler
+4. Push notification sent to phone when feed updates
+5. Mobile app: 📡 button in header opens the AI Radar modal — pull-to-refresh fetches latest
+
+### New Backend Endpoints
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /ai-feed` | Return cached feed items |
+| `POST /ai-feed/refresh` | Trigger fresh fetch + push notify |
+
+### Files Modified/Created
+| File | Change |
+|------|--------|
+| `server.py` | `AI_FEED_FILE`, `_fetch_ai_feed()`, `/ai-feed`, `/ai-feed/refresh`, daily scheduler job |
+| `mobile-fresh/src/types.ts` | Added `AiFeedItem` interface |
+| `mobile-fresh/src/api.ts` | Added `getAiFeed()`, `refreshAiFeed()` |
+| `mobile-fresh/src/components/AiFeedModal.tsx` | New — card feed UI with category badges, pull-to-refresh |
+| `mobile-fresh/App.tsx` | 📡 button in header, `showAiFeed` state, `AiFeedModal` render, notification tap handler |

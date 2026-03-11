@@ -26,6 +26,7 @@ import ChatInput from "./src/components/ChatInput";
 import SettingsModal from "./src/components/SettingsModal";
 import HistoryModal from "./src/components/HistoryModal";
 import PendingRepliesModal from "./src/components/PendingRepliesModal";
+import AiFeedModal from "./src/components/AiFeedModal";
 
 const BACKEND_URL_KEY = "BACKEND_URL";
 let msgCounter = 0;
@@ -98,6 +99,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showPendingReplies, setShowPendingReplies] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [showAiFeed, setShowAiFeed] = useState(false);
   const [autoVoice, setAutoVoice] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
@@ -149,6 +151,8 @@ export default function App() {
       const data = response.notification.request.content.data as Record<string, unknown> | undefined;
       if (data?.type === "pending_reply") {
         setShowPendingReplies(true);
+      } else if (data?.type === "ai_feed") {
+        setShowAiFeed(true);
       }
     });
     return () => responseSub.remove();
@@ -277,6 +281,9 @@ export default function App() {
               </View>
             )}
           </View>
+          <TouchableOpacity onPress={() => setShowAiFeed(true)} style={styles.iconBtn}>
+            <Text style={styles.iconBtnText}>📡</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowHistory(true)} style={styles.iconBtn}>
             <Text style={styles.iconBtnText}>📋</Text>
           </TouchableOpacity>
@@ -333,6 +340,12 @@ export default function App() {
         backendUrl={backendUrl}
         onClose={() => setShowPendingReplies(false)}
         onCountChange={setPendingCount}
+      />
+
+      <AiFeedModal
+        visible={showAiFeed}
+        backendUrl={backendUrl}
+        onClose={() => setShowAiFeed(false)}
       />
     </SafeAreaView>
   );

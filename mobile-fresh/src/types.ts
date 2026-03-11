@@ -19,6 +19,16 @@ export interface ConversationSummary {
   messageCount: number;
 }
 
+export interface AiFeedItem {
+  id: string;
+  title: string;
+  summary: string;
+  category: "model" | "tool" | "library" | "paper" | "news";
+  why_useful: string;
+  url: string;
+  fetched_at: string;
+}
+
 export interface PendingReplyRecord {
   id: string;
   sender_name: string;

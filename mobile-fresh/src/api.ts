@@ -1,4 +1,4 @@
-import { HistoryItem } from "./types";
+import { HistoryItem, AiFeedItem } from "./types";
 
 export async function sendMessage(
   baseUrl: string,
@@ -38,6 +38,27 @@ export async function checkHealth(baseUrl: string): Promise<boolean> {
     return response.ok;
   } catch {
     return false;
+  }
+}
+
+export async function getAiFeed(baseUrl: string): Promise<AiFeedItem[]> {
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/ai-feed`);
+    if (!response.ok) return [];
+    return response.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function refreshAiFeed(baseUrl: string): Promise<number> {
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/ai-feed/refresh`, { method: "POST" });
+    if (!response.ok) return 0;
+    const data = await response.json();
+    return data.count ?? 0;
+  } catch {
+    return 0;
   }
 }
 
