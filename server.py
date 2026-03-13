@@ -204,6 +204,12 @@ async def register_device(reg: DeviceRegistration):
     return {"status": "registered"}
 
 
+@app.get("/devices")
+async def list_devices():
+    devices = _load_json(DEVICES_FILE, [])
+    return {"count": len(devices), "devices": [{"platform": d.get("platform"), "token_prefix": d.get("token", "")[:30]} for d in devices]}
+
+
 @app.post("/pending-reply")
 async def create_pending_reply(req: PendingReply):
     records = _load_json(PENDING_REPLIES_FILE, [])
