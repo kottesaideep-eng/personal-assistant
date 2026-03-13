@@ -64,6 +64,17 @@ class PendingReply(BaseModel):
     chat_id: str
     original_message: str
     draft_reply: str
+    source: str = "imessage"          # "imessage" | "email"
+    subject: Optional[str] = None     # email subject line
+    sender_email: Optional[str] = None  # email address for replying
+
+
+class DraftReplyRequest(BaseModel):
+    sender_name: str
+    message: str
+    history: List[HistoryMessage] = []
+    source: str = "imessage"
+    subject: Optional[str] = None
 
 
 class ApproveRequest(BaseModel):
@@ -137,6 +148,44 @@ async def chat(req: ChatRequest):
     )
 
 
+@app.post("/draft-reply")
+async def draft_reply_endpoint(req: DraftReplyRequest):
+    """Draft a short, natural reply to an iMessage or email — no tool use."""
+    import anthropic as _anthropic
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not anthropic_key:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not set")
+
+    source_label = "email" if req.source == "email" else "iMessage"
+    subject_line = f"\nSubject: {req.subject}" if req.subject else ""
+
+    system = (
+        f"You are drafting a brief, natural reply on behalf of the user to a {source_label} message. "
+        "Write 1-4 sentences that match the tone of the conversation. "
+        "Output only the reply text — no extra commentary, no subject line, no signature unless the context clearly calls for one."
+    )
+
+    messages = [{"role": h.role, "content": h.content} for h in req.history[-6:]]
+    messages.append({
+        "role": "user",
+        "content": f"From: {req.sender_name}{subject_line}\n\n{req.message}\n\nDraft a brief reply:",
+    })
+
+    try:
+        ac = _anthropic.Anthropic(api_key=anthropic_key)
+        msg = await asyncio.to_thread(
+            lambda: ac.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=300,
+                system=system,
+                messages=messages,
+            )
+        )
+        return {"reply": msg.content[0].text.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/register-device")
 async def register_device(reg: DeviceRegistration):
     devices = _load_json(DEVICES_FILE, [])
@@ -157,6 +206,9 @@ async def create_pending_reply(req: PendingReply):
         "chat_id": req.chat_id,
         "original_message": req.original_message,
         "draft_reply": req.draft_reply,
+        "source": req.source,
+        "subject": req.subject,
+        "sender_email": req.sender_email,
         "status": "pending",
         "approved_text": None,
         "created_at": datetime.utcnow().isoformat() + "Z",

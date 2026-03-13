@@ -120,7 +120,7 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>📥 iMessage Inbox</Text>
+            <Text style={styles.title}>📥 Inbox</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
             </TouchableOpacity>
@@ -147,15 +147,32 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
                   {/* Card header */}
                   <View style={styles.cardHeader}>
                     <View style={styles.senderRow}>
+                      <View style={styles.senderTopRow}>
+                        <View style={[
+                          styles.sourceBadge,
+                          item.source === "email" ? styles.sourceBadgeEmail : styles.sourceBadgeIMessage,
+                        ]}>
+                          <Text style={styles.sourceBadgeText}>
+                            {item.source === "email" ? "✉️ Email" : "💬 iMessage"}
+                          </Text>
+                        </View>
+                        <Text style={styles.timestamp}>{formatTime(item.created_at)}</Text>
+                      </View>
                       <Text style={styles.senderName}>{item.sender_name}</Text>
-                      <Text style={styles.senderHandle}>{item.sender_handle}</Text>
+                      <Text style={styles.senderHandle}>
+                        {item.source === "email" ? item.sender_email ?? item.sender_handle : item.sender_handle}
+                      </Text>
+                      {item.subject ? (
+                        <Text style={styles.subjectLine} numberOfLines={1}>📌 {item.subject}</Text>
+                      ) : null}
                     </View>
-                    <Text style={styles.timestamp}>{formatTime(item.created_at)}</Text>
                   </View>
 
                   {/* Their message */}
                   <View style={styles.incomingBubble}>
-                    <Text style={styles.incomingLabel}>Their message</Text>
+                    <Text style={styles.incomingLabel}>
+                      {item.source === "email" ? "Email content" : "Their message"}
+                    </Text>
                     <Text style={styles.incomingText}>{item.original_message}</Text>
                   </View>
 
@@ -249,9 +266,6 @@ const styles = StyleSheet.create({
     borderColor: "#334155",
   },
   cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
     marginBottom: 10,
   },
   senderRow: { flex: 1 },
@@ -315,4 +329,11 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 40, marginBottom: 12 },
   emptyText: { color: "#94a3b8", fontSize: 16, fontWeight: "600", marginBottom: 8 },
   emptyHint: { color: "#475569", fontSize: 13, textAlign: "center" },
+
+  senderTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  sourceBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  sourceBadgeIMessage: { backgroundColor: "#1e3a5f" },
+  sourceBadgeEmail: { backgroundColor: "#1a3320" },
+  sourceBadgeText: { fontSize: 11, fontWeight: "700", color: "#94a3b8" },
+  subjectLine: { color: "#60a5fa", fontSize: 12, marginTop: 4, fontStyle: "italic" },
 });

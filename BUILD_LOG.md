@@ -1178,3 +1178,72 @@ World: pink | Technology: indigo | Science: emerald | Business: amber | Health: 
 | `mobile-fresh/src/types.ts` | `TrendingArticle` interface |
 | `mobile-fresh/src/api.ts` | `getTrendingArticles()`, `refreshTrendingArticles()` |
 | `mobile-fresh/src/components/AiFeedModal.tsx` | Full restructure with trending + AI Radar sections |
+
+---
+
+## Phase 20 — iMessage Fix + Email Reply Extension
+
+### User Prompt
+```
+"i have the feature where it reads through my imessages and replys back,
+can you check if this functionality is working as required and can i extend this for my emails as well"
+```
+
+### iMessage Audit — Issues Found & Fixed
+
+**Bug: draft was using full `/chat` endpoint**
+- `companion.py` was calling `/chat` (the full assistant with calendar/search/notes tools)
+- This caused Claude to potentially produce over-engineered, tool-using, multi-paragraph replies instead of short natural iMessage responses
+- Fix: added `/draft-reply` endpoint (server.py) — uses Claude Haiku with a focused system prompt, no tool use, max 300 tokens, returns 1-4 sentences
+
+**Everything else was working correctly:**
+- SQLite watermark polling every 3s ✓
+- Chat history context (last 10 messages) ✓
+- Push notification on new message ✓
+- Editable draft in mobile Inbox ✓
+- AppleScript iMessage send ✓
+- Approve/dismiss flow ✓
+
+### Email Extension
+
+**companion.py:**
+- Added `email_watcher()` thread (polls every 30s)
+- Reads unread emails from Mail.app inbox via AppleScript
+- Marks emails as read immediately after reading
+- Skips noreply/automated senders
+- Strips quoted reply sections from email content
+- Parses "Name \<email\>" sender format
+- Drafts reply via `/draft-reply` with `source="email"` + subject
+- Posts to `/pending-reply` with `source`, `subject`, `sender_email` fields
+- Push notification: "✉️ Email from [Name]"
+- `approved_sender()` now routes by `source`: email → `send_email_via_applescript`, imessage → `send_imessage_via_applescript`
+- `send_email_via_applescript()` — composes new outgoing message in Mail.app, sets Re: subject, sends
+
+**server.py:**
+- `PendingReply` model gains: `source` (default "imessage"), `subject`, `sender_email`
+- `DraftReplyRequest` model added
+- `/draft-reply` endpoint: Claude Haiku, system prompt tailored to source type, no tools, fast
+- `/pending-reply` now stores `source`, `subject`, `sender_email`
+
+**types.ts:** `PendingReplyRecord` gains optional `source`, `subject`, `sender_email`
+
+**PendingRepliesModal.tsx:**
+- Header renamed "📥 Inbox" (covers both sources)
+- Each card shows a source badge: "💬 iMessage" (blue) or "✉️ Email" (green)
+- Email cards show sender email address + subject line (📌)
+- "Their message" label changes to "Email content" for emails
+
+**start.sh:** Added Mail automation permission reminder
+
+### One-Time Setup Required (for Email)
+In System Settings → Privacy & Security → Automation:
+- Terminal → Mail ✓  (allows AppleScript to read/send via Mail.app)
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server.py` | `/draft-reply` endpoint, `source`/`subject`/`sender_email` on pending-reply |
+| `mac-companion/companion.py` | email_watcher thread, send_email_via_applescript, /draft-reply usage |
+| `mac-companion/start.sh` | Mail automation permission reminder |
+| `mobile-fresh/src/types.ts` | source, subject, sender_email on PendingReplyRecord |
+| `mobile-fresh/src/components/PendingRepliesModal.tsx` | Source badge, subject line, email label |
