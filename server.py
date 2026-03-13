@@ -531,6 +531,33 @@ Return JSON only, no markdown fences, no explanation outside the JSON."""
     return guide
 
 
+@app.get("/ai-feed/debug")
+async def debug_ai_feed():
+    """Returns raw error info for debugging feed generation."""
+    import anthropic as _anthropic
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    tavily_key = os.environ.get("TAVILY_API_KEY")
+    result = {"anthropic_key": bool(anthropic_key), "tavily_key": bool(tavily_key)}
+    if not anthropic_key:
+        return {**result, "error": "no anthropic key"}
+    try:
+        ac = _anthropic.Anthropic(api_key=anthropic_key)
+        msg = await asyncio.to_thread(
+            lambda: ac.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "Reply with valid JSON array: [{\"test\": true}]"}],
+            )
+        )
+        raw = msg.content[0].text.strip()
+        result["raw_response"] = raw
+        result["parsed"] = json.loads(raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip())
+        result["status"] = "ok"
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
+
 @app.get("/ai-feed")
 async def get_ai_feed():
     """Return the latest cached AI feed."""
