@@ -1,4 +1,8 @@
 import { Platform, Alert } from "react-native";
+import Constants from "expo-constants";
+
+// react-native-siri-shortcut is not available in Expo Go
+const isExpoGo = Constants.appOwnership === "expo";
 
 export const Roar_ACTIVITY_TYPE = "com.saideep.personalassistant.voice";
 export const Roar_PHRASE = "Roar";
@@ -14,13 +18,12 @@ const shortcutOptions = {
 
 /** Donate the Roar shortcut to Siri so it learns the user's phrase. */
 export function donateSarvisShortcut(): void {
-  if (Platform.OS !== "ios") return;
+  if (Platform.OS !== "ios" || isExpoGo) return;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { donateShortcut } = require("react-native-siri-shortcut");
     donateShortcut(shortcutOptions);
   } catch {
-    // Not available in Expo Go — requires EAS build
+    // Not available — requires EAS build
   }
 }
 
@@ -28,7 +31,10 @@ export function donateSarvisShortcut(): void {
 export function presentAddToSiriDialog(
   onResult: (status: "added" | "updated" | "deleted" | "cancelled") => void
 ): void {
-  if (Platform.OS !== "ios") return;
+  if (Platform.OS !== "ios" || isExpoGo) {
+    Alert.alert("Requires a Full Build", '"Add to Siri" is not available in Expo Go.');
+    return;
+  }
   try {
     const mod = require("react-native-siri-shortcut");
     if (!mod?.presentShortcut) throw new Error("not available");
@@ -45,7 +51,7 @@ export function presentAddToSiriDialog(
 
 /** Register a listener for when Siri opens the app via the Roar shortcut. */
 export function addSarvisShortcutListener(onInvoked: () => void): () => void {
-  if (Platform.OS !== "ios") return () => {};
+  if (Platform.OS !== "ios" || isExpoGo) return () => {};
   try {
     const { addShortcutListener, getInitialShortcut } = require("react-native-siri-shortcut");
 
