@@ -22,7 +22,6 @@ interface Props {
   onLongPress?: () => void;
 }
 
-// Quarter-circle arc from straight-up to straight-right (radius 82)
 const ARC_POSITIONS = [
   { x: 0,  y: -82 },
   { x: 40, y: -71 },
@@ -38,7 +37,7 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
   const itemAnims  = useRef(items.map(() => new Animated.Value(0))).current;
   const pressAnims = useRef(items.map(() => new Animated.Value(1))).current;
 
-  // Idle pulse on FAB when closed (native driver — transform only)
+  // Idle pulse on FAB when closed
   useEffect(() => {
     if (open) {
       pulseAnim.setValue(1);
@@ -54,31 +53,57 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
     return () => loop.stop();
   }, [open]);
 
-  const toggle = () => {
-    const toValue = open ? 0 : 1;
+  const openMenu = () => {
+    // Reset all values to 0 before animating in
+    itemAnims.forEach((a) => a.setValue(0));
+    overlayOp.setValue(0);
+    rotation.setValue(0);
+    setOpen(true);
+
     Animated.parallel([
-      Animated.spring(rotation,  { toValue, useNativeDriver: true, tension: 130, friction: 8 }),
-      Animated.timing(overlayOp, { toValue, duration: 220, useNativeDriver: true }),
+      Animated.spring(rotation,  { toValue: 1, useNativeDriver: true, tension: 130, friction: 8 }),
+      Animated.timing(overlayOp, { toValue: 1, duration: 220, useNativeDriver: true }),
       ...itemAnims.map((anim, i) =>
         Animated.spring(anim, {
-          toValue,
+          toValue: 1,
           useNativeDriver: true,
           tension: 130,
           friction: 7,
-          delay: open ? 0 : i * 55,
+          delay: i * 55,
         })
       ),
     ]).start();
-    setOpen((prev) => !prev);
   };
+
+  const closeMenu = () => {
+    Animated.parallel([
+      Animated.spring(rotation,  { toValue: 0, useNativeDriver: true, tension: 130, friction: 8 }),
+      Animated.timing(overlayOp, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ...itemAnims.map((anim) =>
+        Animated.spring(anim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 130,
+          friction: 7,
+        })
+      ),
+    ]).start(({ finished }) => {
+      if (finished) {
+        // Only hide items after animation fully completes
+        setOpen(false);
+      }
+    });
+  };
+
+  const toggle = () => (open ? closeMenu() : openMenu());
 
   const handleItemPress = (item: MenuItem, index: number) => {
     Animated.sequence([
-      Animated.timing(pressAnims[index], { toValue: 0.82, duration: 80,  useNativeDriver: true }),
-      Animated.spring(pressAnims[index], { toValue: 1,    tension: 200, friction: 6, useNativeDriver: true }),
+      Animated.timing(pressAnims[index], { toValue: 0.82, duration: 80, useNativeDriver: true }),
+      Animated.spring(pressAnims[index], { toValue: 1, tension: 200, friction: 6, useNativeDriver: true }),
     ]).start();
-    toggle();
-    setTimeout(() => item.onPress(), 180);
+    closeMenu();
+    setTimeout(() => item.onPress(), 200);
   };
 
   const rotate = rotation.interpolate({
@@ -88,18 +113,18 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
 
   return (
     <>
-      {/* Dimming overlay */}
+      {/* Dimming overlay — only mounted while open */}
       {open && (
         <Animated.View
           style={[styles.overlay, { opacity: overlayOp }]}
           pointerEvents="auto"
         >
-          <Pressable style={StyleSheet.absoluteFill} onPress={toggle} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
         </Animated.View>
       )}
 
-      {/* Action items */}
-      {items.map((item, i) => {
+      {/* Action items — only mounted while open */}
+      {open && items.map((item, i) => {
         const pos   = ARC_POSITIONS[i] ?? { x: 0, y: -82 * (i + 1) };
         const color = item.color ?? "#6366f1";
 
@@ -107,7 +132,7 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
         const translateY = itemAnims[i].interpolate({ inputRange: [0, 1], outputRange: [0, pos.y] });
         const scale      = itemAnims[i].interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.2, 1.08, 1] });
         const opacity    = itemAnims[i].interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0.8, 1] });
-        const labelSlide = itemAnims[i].interpolate({ inputRange: [0, 1], outputRange: [-10, 0] });
+        const labelSlide = itemAnims[i].interpolate({ inputRange: [0, 1], outputRange: [-8, 0] });
 
         return (
           <Animated.View
@@ -116,9 +141,7 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
               styles.itemContainer,
               { opacity, transform: [{ translateX }, { translateY }, { scale }] },
             ]}
-            pointerEvents={open ? "auto" : "none"}
           >
-            {/* Press scale wraps just the button */}
             <Animated.View style={{ transform: [{ scale: pressAnims[i] }] }}>
               <TouchableOpacity
                 style={[
@@ -141,7 +164,6 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
               </TouchableOpacity>
             </Animated.View>
 
-            {/* Label — appears to the right */}
             <Animated.View
               style={[
                 styles.label,
@@ -154,7 +176,7 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
         );
       })}
 
-      {/* Main FAB — pulse uses native driver (transform only, no shadow animation) */}
+      {/* Main FAB */}
       <Animated.View
         style={[styles.fabWrap, { transform: [{ scale: open ? 1 : pulseAnim }] }]}
       >
@@ -179,7 +201,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     zIndex: 10,
   },
-
   itemContainer: {
     position: "absolute",
     bottom: 28,
@@ -214,7 +235,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   badgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
-
   label: {
     marginLeft: 10,
     backgroundColor: "#0d1628",
@@ -224,7 +244,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   labelText: { color: "#e2e8f0", fontSize: 12, fontWeight: "600" },
-
   fabWrap: {
     position: "absolute",
     bottom: 28,
@@ -244,9 +263,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  fabOpen: {
-    backgroundColor: "#4f46e5",
-  },
+  fabOpen: { backgroundColor: "#4f46e5" },
   fabIcon: {
     color: "#fff",
     fontSize: 28,
