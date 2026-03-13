@@ -22,6 +22,7 @@ interface Props {
 export default function PendingRepliesModal({ visible, backendUrl, onClose, onCountChange }: Props) {
   const [records, setRecords] = useState<PendingReplyRecord[]>([]);
   const [draftTexts, setDraftTexts] = useState<Record<string, string>>({});
+  const [selectedOption, setSelectedOption] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState<Record<string, boolean>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -178,9 +179,32 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
                     <Text style={styles.incomingText}>{item.original_message}</Text>
                   </View>
 
-                  {/* Roar's draft — editable */}
+                  {/* Reply options */}
+                  {item.draft_options && item.draft_options.length > 0 && (
+                    <View style={styles.optionsContainer}>
+                      <Text style={styles.optionsLabel}>Choose a reply</Text>
+                      {[{ tag: "Brief", color: "#0ea5e9" }, { tag: "Friendly", color: "#10b981" }, { tag: "Formal", color: "#6366f1" }].map(({ tag, color }, i) => {
+                        const isSelected = (selectedOption[item.id] ?? 0) === i;
+                        return (
+                          <TouchableOpacity
+                            key={tag}
+                            style={[styles.optionChip, { borderColor: isSelected ? color : "#1e293b", backgroundColor: isSelected ? color + "22" : "#0f172a" }]}
+                            onPress={() => {
+                              setSelectedOption((prev) => ({ ...prev, [item.id]: i }));
+                              setDraftTexts((prev) => ({ ...prev, [item.id]: item.draft_options![i] }));
+                            }}
+                          >
+                            <Text style={[styles.optionTag, { color }]}>{tag}</Text>
+                            <Text style={styles.optionText}>{item.draft_options![i]}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {/* Editable draft */}
                   <View style={styles.draftContainer}>
-                    <Text style={styles.draftLabel}>Roar's draft</Text>
+                    <Text style={styles.draftLabel}>Edit before sending</Text>
                     <TextInput
                       style={styles.draftInput}
                       value={draftTexts[item.id] ?? item.draft_reply}
@@ -285,6 +309,14 @@ const styles = StyleSheet.create({
   },
   incomingLabel: { color: "#475569", fontSize: 11, marginBottom: 4 },
   incomingText: { color: "#94a3b8", fontSize: 14, lineHeight: 20 },
+
+  optionsContainer: { marginBottom: 10, gap: 6 },
+  optionsLabel: { color: "#475569", fontSize: 11, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
+  optionChip: {
+    borderWidth: 1.5, borderRadius: 10, padding: 10,
+  },
+  optionTag: { fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 },
+  optionText: { color: "#94a3b8", fontSize: 13, lineHeight: 18 },
 
   draftContainer: {
     backgroundColor: "#172033",

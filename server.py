@@ -934,38 +934,46 @@ def _gmail_send(gmail_user: str, gmail_pass: str,
         return False
 
 
-async def _draft_reply_text(sender_name: str, message: str,
-                            subject: str | None = None) -> str | None:
-    """Call Claude Haiku to draft a short email reply. Returns text or None."""
+async def _draft_reply_options(sender_name: str, message: str,
+                               subject: str | None = None) -> list[str]:
+    """Call Claude Haiku to generate 3 reply options (brief, friendly, formal). Returns list."""
     import anthropic as _anthropic
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
     if not anthropic_key:
-        return None
+        return []
 
     subject_line = f"\nSubject: {subject}" if subject else ""
     system = (
-        "You are drafting a brief, professional reply on behalf of the user to an email. "
-        "Write 2-5 sentences that are clear and appropriate in tone. "
-        "Output only the reply text — no greeting header, no signature, no extra commentary."
+        "You are drafting reply options on behalf of the user to an email. "
+        "Generate exactly 3 reply options with different tones:\n"
+        "1. Brief: 1-2 sentences, straight to the point\n"
+        "2. Friendly: 2-3 sentences, warm and conversational\n"
+        "3. Formal: 2-4 sentences, professional and polished\n\n"
+        "Return ONLY a JSON array of 3 strings, no other text. Example:\n"
+        '[\"Brief reply here.\", \"Friendly reply here.\", \"Formal reply here.\"]'
     )
     messages = [{
         "role": "user",
-        "content": f"From: {sender_name}{subject_line}\n\n{message}\n\nDraft a brief reply:",
+        "content": f"From: {sender_name}{subject_line}\n\n{message}\n\nGenerate 3 reply options:",
     }]
     try:
         ac = _anthropic.Anthropic(api_key=anthropic_key)
         msg = await asyncio.to_thread(
             lambda: ac.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=300,
+                max_tokens=500,
                 system=system,
                 messages=messages,
             )
         )
-        return msg.content[0].text.strip()
+        raw = msg.content[0].text.strip()
+        options = json.loads(raw)
+        if isinstance(options, list) and len(options) == 3:
+            return [str(o) for o in options]
+        return []
     except Exception as e:
-        print(f"[gmail] Draft error: {e}")
-        return None
+        print(f"[gmail] Draft options error: {e}")
+        return []
 
 
 def _get_gmail_accounts() -> list[dict]:
@@ -1027,9 +1035,10 @@ async def _poll_gmail_account(account: dict) -> int:
 
         print(f"[gmail:{nickname}] New email from {sender_name} <{sender_email}>: {subject[:50]}")
 
-        draft = await _draft_reply_text(sender_name, body, subject)
-        if not draft:
+        options = await _draft_reply_options(sender_name, body, subject)
+        if not options:
             continue
+        draft = options[0]  # first option as default
 
         record = {
             "id": str(uuid.uuid4()),
@@ -1038,10 +1047,11 @@ async def _poll_gmail_account(account: dict) -> int:
             "chat_id": chat_id,
             "original_message": body,
             "draft_reply": draft,
+            "draft_options": options,
             "source": "email",
             "subject": subject,
             "sender_email": sender_email,
-            "gmail_account": gmail_user,   # track which account received it
+            "gmail_account": gmail_user,
             "gmail_nickname": nickname,
             "status": "pending",
             "approved_text": None,

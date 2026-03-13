@@ -54,4 +54,5 @@ export interface PendingReplyRecord {
   sender_email?: string;
   gmail_account?: string;
   gmail_nickname?: string;
+  draft_options?: string[];
 }

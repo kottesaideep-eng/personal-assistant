@@ -1418,3 +1418,37 @@ and ask me to confirm if i want to send it or not" → option 3: quick approve/r
 | `mobile-fresh/App.tsx` | Notification category registration + action handlers |
 | `mac-companion/companion.py` | Draft text in notification body + categoryId in data |
 | `server.py` | Draft text + categoryId in Gmail push notification data |
+
+---
+
+## Phase 25 — Multiple Reply Options in Inbox
+
+### User Prompt
+```
+"now could you generate a prompt based on the email, also. I want an option to choose
+from a set of auto generated messages you can generate after reviewing the email sent"
+```
+
+### Changes
+
+**server.py:**
+- Replaced `_draft_reply_text()` with `_draft_reply_options()` — generates 3 reply variants in a single Claude Haiku call
+- Returns JSON array of 3 strings: Brief (1-2 sentences), Friendly (2-3 sentences), Formal (2-4 sentences)
+- Record now stores `draft_options: [brief, friendly, formal]` alongside `draft_reply` (= first option)
+- Push notification still shows the brief option as preview
+
+**types.ts:**
+- `PendingReplyRecord` gains optional `draft_options: string[]`
+
+**PendingRepliesModal.tsx:**
+- Shows 3 tappable option chips above the edit box: Brief (sky), Friendly (emerald), Formal (indigo)
+- Tapping a chip selects it (highlighted border + tinted background) and loads it into the edit box
+- User can edit the selected text before sending
+- Falls back gracefully for iMessage records that don't have `draft_options`
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server.py` | _draft_reply_options() generates 3 variants |
+| `mobile-fresh/src/types.ts` | draft_options field |
+| `mobile-fresh/src/components/PendingRepliesModal.tsx` | 3 tappable reply option chips |
