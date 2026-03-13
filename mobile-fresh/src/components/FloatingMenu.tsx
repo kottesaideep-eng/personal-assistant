@@ -24,22 +24,21 @@ interface Props {
 
 // Quarter-circle arc from straight-up to straight-right (radius 82)
 const ARC_POSITIONS = [
-  { x: 0,  y: -82 },   // 12 o'clock
-  { x: 40, y: -71 },   // ~1 o'clock
-  { x: 71, y: -40 },   // ~2 o'clock
-  { x: 82, y: 0  },    // 3 o'clock (horizontal right)
+  { x: 0,  y: -82 },
+  { x: 40, y: -71 },
+  { x: 71, y: -40 },
+  { x: 82, y: 0  },
 ];
 
 export default function FloatingMenu({ items, onLongPress }: Props) {
   const [open, setOpen] = useState(false);
-  const rotation  = useRef(new Animated.Value(0)).current;
-  const overlayOp = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim  = useRef(new Animated.Value(0)).current;
-  const itemAnims = useRef(items.map(() => new Animated.Value(0))).current;
+  const rotation   = useRef(new Animated.Value(0)).current;
+  const overlayOp  = useRef(new Animated.Value(0)).current;
+  const pulseAnim  = useRef(new Animated.Value(1)).current;
+  const itemAnims  = useRef(items.map(() => new Animated.Value(0))).current;
   const pressAnims = useRef(items.map(() => new Animated.Value(1))).current;
 
-  // Idle pulse glow when closed
+  // Idle pulse on FAB when closed (native driver — transform only)
   useEffect(() => {
     if (open) {
       pulseAnim.setValue(1);
@@ -47,7 +46,7 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
     }
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.06, duration: 1600, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.07, duration: 1600, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1,    duration: 1600, useNativeDriver: true }),
       ])
     );
@@ -60,7 +59,6 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
     Animated.parallel([
       Animated.spring(rotation,  { toValue, useNativeDriver: true, tension: 130, friction: 8 }),
       Animated.timing(overlayOp, { toValue, duration: 220, useNativeDriver: true }),
-      Animated.timing(glowAnim,  { toValue, duration: 200, useNativeDriver: false }),
       ...itemAnims.map((anim, i) =>
         Animated.spring(anim, {
           toValue,
@@ -75,10 +73,9 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
   };
 
   const handleItemPress = (item: MenuItem, index: number) => {
-    // Bounce the item before closing
     Animated.sequence([
-      Animated.timing(pressAnims[index], { toValue: 0.82, duration: 80, useNativeDriver: true }),
-      Animated.spring(pressAnims[index], { toValue: 1, tension: 200, friction: 6, useNativeDriver: true }),
+      Animated.timing(pressAnims[index], { toValue: 0.82, duration: 80,  useNativeDriver: true }),
+      Animated.spring(pressAnims[index], { toValue: 1,    tension: 200, friction: 6, useNativeDriver: true }),
     ]).start();
     toggle();
     setTimeout(() => item.onPress(), 180);
@@ -87,15 +84,6 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
   const rotate = rotation.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "45deg"],
-  });
-
-  const fabShadowRadius = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [10, 20],
-  });
-  const fabShadowOpacity = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.35, 0.7],
   });
 
   return (
@@ -112,7 +100,7 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
 
       {/* Action items */}
       {items.map((item, i) => {
-        const pos = ARC_POSITIONS[i] ?? { x: 0, y: -82 * (i + 1) };
+        const pos   = ARC_POSITIONS[i] ?? { x: 0, y: -82 * (i + 1) };
         const color = item.color ?? "#6366f1";
 
         const translateX = itemAnims[i].interpolate({ inputRange: [0, 1], outputRange: [0, pos.x] });
@@ -126,33 +114,32 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
             key={item.label}
             style={[
               styles.itemContainer,
-              {
-                transform: [{ translateX }, { translateY }, { scale: Animated.multiply(scale, pressAnims[i]) }],
-                opacity,
-              },
+              { opacity, transform: [{ translateX }, { translateY }, { scale }] },
             ]}
             pointerEvents={open ? "auto" : "none"}
           >
-            {/* Button */}
-            <TouchableOpacity
-              style={[
-                styles.itemBtn,
-                {
-                  backgroundColor: color + "1a",
-                  borderColor: color + "70",
-                  shadowColor: color,
-                },
-              ]}
-              onPress={() => handleItemPress(item, i)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.itemIcon}>{item.icon}</Text>
-              {!!item.badge && item.badge > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{item.badge > 99 ? "99+" : item.badge}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            {/* Press scale wraps just the button */}
+            <Animated.View style={{ transform: [{ scale: pressAnims[i] }] }}>
+              <TouchableOpacity
+                style={[
+                  styles.itemBtn,
+                  {
+                    backgroundColor: color + "1a",
+                    borderColor: color + "70",
+                    shadowColor: color,
+                  },
+                ]}
+                onPress={() => handleItemPress(item, i)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.itemIcon}>{item.icon}</Text>
+                {!!item.badge && item.badge > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{item.badge > 99 ? "99+" : item.badge}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
 
             {/* Label — appears to the right */}
             <Animated.View
@@ -167,16 +154,9 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
         );
       })}
 
-      {/* Main FAB */}
+      {/* Main FAB — pulse uses native driver (transform only, no shadow animation) */}
       <Animated.View
-        style={[
-          styles.fabShadowWrap,
-          {
-            shadowRadius: fabShadowRadius,
-            shadowOpacity: fabShadowOpacity,
-            transform: [{ scale: open ? 1 : pulseAnim }],
-          },
-        ]}
+        style={[styles.fabWrap, { transform: [{ scale: open ? 1 : pulseAnim }] }]}
       >
         <TouchableOpacity
           style={[styles.fab, open && styles.fabOpen]}
@@ -200,7 +180,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
-  // Items are positioned relative to the FAB (bottom-left)
   itemContainer: {
     position: "absolute",
     bottom: 28,
@@ -246,13 +225,16 @@ const styles = StyleSheet.create({
   },
   labelText: { color: "#e2e8f0", fontSize: 12, fontWeight: "600" },
 
-  fabShadowWrap: {
+  fabWrap: {
     position: "absolute",
     bottom: 28,
     left: 20,
     zIndex: 20,
     shadowColor: "#6366f1",
     shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    shadowOpacity: 0.5,
+    elevation: 8,
   },
   fab: {
     width: 56,
@@ -261,7 +243,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#6366f1",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 8,
   },
   fabOpen: {
     backgroundColor: "#4f46e5",
