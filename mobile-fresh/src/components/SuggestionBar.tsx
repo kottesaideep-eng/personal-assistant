@@ -18,7 +18,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   Trending: "#f97316",
 };
 
-// Static fallback prompts shown before network loads
 const FALLBACKS: Suggestion[] = [
   { text: "What's the latest in AI today?", category: "AI" },
   { text: "Any big tech news this week?", category: "Tech" },
@@ -50,10 +49,6 @@ export default function SuggestionBar({ backendUrl, onSelect }: Props) {
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>📰 Ask about</Text>
-        {loading && <ActivityIndicator size="small" color="#475569" style={{ marginLeft: 6 }} />}
-      </View>
       <FlatList
         horizontal
         data={items}
@@ -64,34 +59,65 @@ export default function SuggestionBar({ backendUrl, onSelect }: Props) {
           const color = CATEGORY_COLORS[item.category] ?? "#6366f1";
           return (
             <TouchableOpacity
-              style={[styles.chip, { borderColor: color + "55" }]}
+              style={styles.chip}
               activeOpacity={0.7}
               onPress={() => onSelect(item.text)}
             >
-              <Text style={[styles.chipCategory, { color }]}>{item.category}</Text>
-              <Text style={styles.chipText} numberOfLines={2}>{item.text}</Text>
+              <View style={[styles.dot, { backgroundColor: color }]} />
+              <Text style={styles.chipText} numberOfLines={1}>{item.text}</Text>
             </TouchableOpacity>
           );
         }}
+        ListHeaderComponent={
+          loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#334155" />
+            </View>
+          ) : null
+        }
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { paddingTop: 8, paddingBottom: 4, borderTopWidth: 1, borderTopColor: "#1e293b" },
-  labelRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, marginBottom: 6 },
-  label: { fontSize: 11, color: "#475569", fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
-  list: { paddingHorizontal: 12, gap: 8 },
-  chip: {
-    backgroundColor: "#1e293b",
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+  wrapper: {
     paddingVertical: 8,
-    maxWidth: 200,
-    minWidth: 120,
+    borderTopWidth: 1,
+    borderTopColor: "#0f1729",
   },
-  chipCategory: { fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 },
-  chipText: { fontSize: 12, color: "#cbd5e1", lineHeight: 16 },
+  list: {
+    paddingHorizontal: 14,
+    gap: 8,
+    alignItems: "center",
+  },
+  loadingContainer: {
+    width: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0f1729",
+    borderWidth: 1,
+    borderColor: "#1a2540",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    gap: 7,
+    maxWidth: 220,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    flexShrink: 0,
+  },
+  chipText: {
+    fontSize: 13,
+    color: "#94a3b8",
+    fontWeight: "500",
+    flexShrink: 1,
+  },
 });

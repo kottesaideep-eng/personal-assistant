@@ -1047,3 +1047,49 @@ away from asking about current events or any tool in their feed.
 | `server.py` | Tavily optional fallback; fixed prompt; fixed JSON fence stripping; added `/ai-feed/debug` |
 | `mobile-fresh/src/components/AiFeedModal.tsx` | Replace pull-to-refresh with header Refresh button |
 | `.railwayignore` | Exclude mobile/mac dirs from Railway Nixpacks build |
+
+---
+
+## Phase 17 — Modern Chat UI Redesign
+
+### User Prompt
+```
+"I want to improve the UI of my app" / "Modern chat app feel" / "go for it"
+```
+
+### What Was Changed
+
+**Goal:** Make the app feel like a polished, modern chat app (iMessage/Telegram style).
+
+**MessageBubble.tsx:**
+- Replaced `🤖` emoji avatar with a clean indigo circle showing letter "R"
+- Moved timestamps **outside** the bubble (below it) — like iMessage
+- Tightened bubble border-radius, removed border from assistant bubbles
+- Assistant bubble now uses `#141b2d` (deeper dark) for better contrast
+- Improved markdown font sizes and line-height for readability
+
+**ChatInput.tsx:**
+- Send/mic button moved **inside** the input pill — iMessage style
+- Camera button redesigned as a smaller `sideBtn` outside left
+- Input pill border glows indigo on focus
+- More compact padding, cleaner layout
+
+**SuggestionBar.tsx:**
+- Removed the "📰 Ask about" label row (less clutter)
+- Replaced category text with a small colored dot
+- Chips are taller, rounder, single-line text
+
+**App.tsx:**
+- Header avatar: `🤖` → indigo "R" circle (matches MessageBubble)
+- Status text changed to "Active now" (more chat-like)
+- Empty state redesigned: large avatar, name, subtitle, then suggestion chips
+- Suggestion chips now include emoji icons per category
+- Typing indicator updated to use same indigo "R" avatar + indigo dots
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `mobile-fresh/src/components/MessageBubble.tsx` | New avatar, timestamps outside bubble, cleaner bubbles |
+| `mobile-fresh/src/components/ChatInput.tsx` | Send button inside input pill |
+| `mobile-fresh/src/components/SuggestionBar.tsx` | Cleaner chips, no label row |
+| `mobile-fresh/App.tsx` | Header, empty state, typing indicator redesigned |

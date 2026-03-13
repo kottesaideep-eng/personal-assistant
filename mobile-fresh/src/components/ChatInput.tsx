@@ -13,7 +13,6 @@ import {
 import * as ImagePicker from "expo-image-picker";
 
 // Voice is a native-only module — not available in Expo Go.
-// Load it dynamically so the app doesn't crash when it's missing.
 let Voice: any = null;
 try {
   Voice = require("@react-native-voice/voice").default;
@@ -38,17 +37,16 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
   const [focused, setFocused] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
+  const borderAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(glowAnim, {
+    Animated.timing(borderAnim, {
       toValue: focused ? 1 : 0,
       duration: 200,
       useNativeDriver: false,
     }).start();
   }, [focused]);
 
-  // Voice setup — skip if native module unavailable (Expo Go)
   useEffect(() => {
     if (!Voice) return;
     Voice.onSpeechResults = (e: any) => {
@@ -64,7 +62,6 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
     };
   }, []);
 
-  // Auto-activate mic when opened via "Hey Siri, Roar" or deep link
   useEffect(() => {
     if (autoActivateMic && !disabled) {
       const timer = setTimeout(() => handleMicPressIn(), 600);
@@ -72,13 +69,12 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
     }
   }, [autoActivateMic]);
 
-  // Pulsing animation while recording
   useEffect(() => {
     if (isRecording) {
       const pulse = Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.4, duration: 500, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.25, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
         ])
       );
       pulse.start();
@@ -92,8 +88,8 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
     const trimmed = text.trim();
     if ((!trimmed && !pendingImage) || disabled) return;
     Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.88, duration: 80, useNativeDriver: true }),
-      Animated.timing(scaleAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 0.85, duration: 70, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
     ]).start();
     onSend(trimmed || "What's in this image?", pendingImage ?? undefined);
     setText("");
@@ -174,27 +170,28 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
 
       <View style={styles.row}>
         {/* Camera button */}
-        <TouchableOpacity style={styles.iconBtn} onPress={handlePickImage} disabled={disabled}>
-          <Text style={styles.iconBtnText}>📷</Text>
+        <TouchableOpacity style={styles.sideBtn} onPress={handlePickImage} disabled={disabled}>
+          <Text style={styles.sideBtnIcon}>📷</Text>
         </TouchableOpacity>
 
-        {/* Text input */}
-        <Animated.View style={[
-          styles.inputWrapper,
-          {
-            borderColor: glowAnim.interpolate({ inputRange: [0, 1], outputRange: ["#334155", "#6366f1"] }),
-            shadowOpacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.3] }),
-            shadowColor: "#6366f1",
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 0 },
-          }
-        ]}>
+        {/* Input pill — text + action button inside */}
+        <Animated.View
+          style={[
+            styles.inputPill,
+            {
+              borderColor: borderAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["#1e293b", "#6366f1"],
+              }),
+            },
+          ]}
+        >
           <TextInput
             style={styles.input}
             value={text}
             onChangeText={setText}
-            placeholder="Ask me anything…"
-            placeholderTextColor="#475569"
+            placeholder="Message Roar…"
+            placeholderTextColor="#3d5066"
             multiline
             maxLength={4000}
             editable={!disabled}
@@ -202,33 +199,34 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
           />
-        </Animated.View>
 
-        {/* Mic or Send button */}
-        {showMic ? (
-          <TouchableOpacity
-            onPressIn={handleMicPressIn}
-            onPressOut={handleMicPressOut}
-            style={styles.iconBtn}
-          >
-            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-              <Text style={[styles.iconBtnText, isRecording && styles.micRecording]}>
-                🎤
-              </Text>
-            </Animated.View>
-          </TouchableOpacity>
-        ) : (
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          {/* Mic or Send — inside the pill */}
+          {showMic ? (
             <TouchableOpacity
-              style={[styles.sendBtn, canSend ? styles.sendBtnActive : styles.sendBtnInactive]}
-              onPress={handleSend}
-              disabled={!canSend}
-              activeOpacity={0.75}
+              onPressIn={handleMicPressIn}
+              onPressOut={handleMicPressOut}
+              style={styles.inlineBtn}
+              activeOpacity={0.7}
             >
-              <Text style={[styles.sendIcon, !canSend && styles.sendIconInactive]}>↑</Text>
+              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                <Text style={[styles.inlineBtnIcon, isRecording && styles.micActive]}>
+                  🎤
+                </Text>
+              </Animated.View>
             </TouchableOpacity>
-          </Animated.View>
-        )}
+          ) : (
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <TouchableOpacity
+                style={[styles.sendBtn, canSend ? styles.sendBtnActive : styles.sendBtnInactive]}
+                onPress={handleSend}
+                disabled={!canSend}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.sendIcon, !canSend && styles.sendIconDisabled]}>↑</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+        </Animated.View>
       </View>
     </View>
   );
@@ -237,21 +235,21 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    paddingBottom: 16,
-    backgroundColor: "#0f172a",
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 14 : 12,
+    backgroundColor: "#080d1a",
     borderTopWidth: 1,
-    borderTopColor: "#1e293b",
+    borderTopColor: "#0f1729",
   },
   imagePreviewContainer: {
     alignSelf: "flex-start",
     marginBottom: 8,
-    marginLeft: 4,
+    marginLeft: 52,
   },
   imagePreview: {
     width: 80,
     height: 80,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   imageRemoveBtn: {
     position: "absolute",
@@ -266,59 +264,82 @@ const styles = StyleSheet.create({
   },
   imageRemoveBtnText: { color: "#fff", fontSize: 10, fontWeight: "700" },
 
-  row: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+  },
 
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#1e293b",
+  sideBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#0f1729",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#1e293b",
+    marginBottom: 2,
   },
-  iconBtnText: { fontSize: 20 },
-  micRecording: { color: "#ef4444" },
+  sideBtnIcon: { fontSize: 18 },
 
-  inputWrapper: {
+  inputPill: {
     flex: 1,
-    backgroundColor: "#1e293b",
-    borderRadius: 24,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    backgroundColor: "#0f1729",
+    borderRadius: 26,
     borderWidth: 1.5,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingLeft: 16,
+    paddingRight: 6,
+    paddingVertical: 6,
     minHeight: 46,
-    justifyContent: "center",
   },
   input: {
+    flex: 1,
     color: "#f1f5f9",
-    fontSize: 15,
-    lineHeight: 21,
+    fontSize: 15.5,
+    lineHeight: 22,
     maxHeight: 120,
     padding: 0,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
 
-  sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  inlineBtn: {
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: 4,
+  },
+  inlineBtnIcon: { fontSize: 18 },
+  micActive: { opacity: 0.6 },
+
+  sendBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
   },
   sendBtnActive: {
     backgroundColor: "#2563eb",
     shadowColor: "#2563eb",
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.45,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
   },
   sendBtnInactive: {
     backgroundColor: "#1e293b",
-    borderWidth: 1,
-    borderColor: "#334155",
   },
-  sendIcon: { color: "#ffffff", fontSize: 20, fontWeight: "700" },
-  sendIconInactive: { color: "#475569" },
+  sendIcon: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 22,
+  },
+  sendIconDisabled: { color: "#334155" },
 });

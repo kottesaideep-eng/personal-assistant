@@ -62,7 +62,7 @@ function TypingIndicator() {
   return (
     <View style={typingStyles.row}>
       <View style={typingStyles.avatar}>
-        <Text style={{ fontSize: 14 }}>🤖</Text>
+        <Text style={typingStyles.avatarText}>R</Text>
       </View>
       <View style={typingStyles.bubble}>
         {dots.map((dot, i) => (
@@ -77,19 +77,20 @@ function TypingIndicator() {
 }
 
 const typingStyles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "flex-end", marginHorizontal: 12, marginVertical: 5 },
+  row: { flexDirection: "row", alignItems: "flex-end", marginHorizontal: 14, marginVertical: 4 },
   avatar: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: "#1e293b", alignItems: "center", justifyContent: "center",
-    marginRight: 8, borderWidth: 1, borderColor: "#334155",
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: "#6366f1", alignItems: "center", justifyContent: "center",
+    marginRight: 8,
+    shadowColor: "#6366f1", shadowOpacity: 0.4, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
   },
+  avatarText: { color: "#fff", fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
   bubble: {
-    backgroundColor: "#1e293b", borderRadius: 22, borderBottomLeftRadius: 5,
-    borderWidth: 1, borderColor: "#334155",
-    paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: "#141b2d", borderRadius: 22, borderBottomLeftRadius: 5,
+    paddingHorizontal: 18, paddingVertical: 14,
     flexDirection: "row", alignItems: "center", gap: 5,
   },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#60a5fa" },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#6366f1" },
 });
 
 export default function App() {
@@ -255,23 +256,22 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor="#080d1a" />
 
-      {/* Clean Header */}
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.headerIcon}>
-            <Text style={{ fontSize: 20 }}>🤖</Text>
+          <View style={styles.headerAvatar}>
+            <Text style={styles.headerAvatarText}>R</Text>
           </View>
           <View>
             <Text style={styles.headerTitle}>Roar</Text>
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, backendUrl ? styles.statusOnline : styles.statusOffline]} />
-              <Text style={styles.statusText}>{backendUrl ? "Ready" : "Not configured"}</Text>
+              <Text style={styles.statusText}>{backendUrl ? "Active now" : "Not configured"}</Text>
             </View>
           </View>
         </View>
-        {/* New chat button — top right only */}
         <TouchableOpacity onPress={handleClear} style={styles.newChatBtn}>
-          <Text style={styles.newChatText}>+ New</Text>
+          <Text style={styles.newChatText}>+ New chat</Text>
         </TouchableOpacity>
       </View>
 
@@ -286,12 +286,21 @@ export default function App() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>✨</Text>
-              <Text style={styles.emptyTitle}>What can I help with?</Text>
+              <View style={styles.emptyAvatar}>
+                <Text style={styles.emptyAvatarText}>R</Text>
+              </View>
+              <Text style={styles.emptyName}>Roar</Text>
+              <Text style={styles.emptyTitle}>Your personal AI assistant</Text>
               <View style={styles.suggestionGrid}>
-                {["Search the web", "Add calendar event", "Create a note", "Set a reminder"].map((s) => (
-                  <TouchableOpacity key={s} style={styles.suggestion} onPress={() => handleSend(s)}>
-                    <Text style={styles.suggestionText}>{s}</Text>
+                {[
+                  { icon: "🔍", label: "Search the web" },
+                  { icon: "📅", label: "Add calendar event" },
+                  { icon: "📝", label: "Create a note" },
+                  { icon: "⏰", label: "Set a reminder" },
+                ].map(({ icon, label }) => (
+                  <TouchableOpacity key={label} style={styles.suggestion} onPress={() => handleSend(label)}>
+                    <Text style={styles.suggestionIcon}>{icon}</Text>
+                    <Text style={styles.suggestionText}>{label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -353,45 +362,55 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 18, paddingVertical: 14,
+    paddingHorizontal: 16, paddingVertical: 12,
     backgroundColor: "#080d1a",
-    borderBottomWidth: 1, borderBottomColor: "#0f1729",
+    borderBottomWidth: 1, borderBottomColor: "#0d1628",
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  headerIcon: {
-    width: 42, height: 42, borderRadius: 21,
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 11 },
+  headerAvatar: {
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: "#6366f1", alignItems: "center", justifyContent: "center",
-    shadowColor: "#6366f1", shadowOpacity: 0.45, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
+    shadowColor: "#6366f1", shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
   },
-  headerTitle: { color: "#f1f5f9", fontSize: 18, fontWeight: "800", letterSpacing: 0.3 },
+  headerAvatarText: { color: "#fff", fontSize: 17, fontWeight: "800", letterSpacing: 0.5 },
+  headerTitle: { color: "#f1f5f9", fontSize: 17, fontWeight: "700", letterSpacing: 0.2 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusOnline: { backgroundColor: "#22c55e" },
-  statusOffline: { backgroundColor: "#475569" },
-  statusText: { color: "#475569", fontSize: 11 },
+  statusOffline: { backgroundColor: "#334155" },
+  statusText: { color: "#3d5475", fontSize: 11, fontWeight: "500" },
 
   newChatBtn: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    backgroundColor: "#0f1729",
-    borderRadius: 20, borderWidth: 1, borderColor: "#1e293b",
+    paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: "#0d1628",
+    borderRadius: 20, borderWidth: 1, borderColor: "#1a2540",
   },
-  newChatText: { color: "#6366f1", fontSize: 13, fontWeight: "700" },
+  newChatText: { color: "#6366f1", fontSize: 13, fontWeight: "600" },
 
   fabContainer: {
     position: "absolute", bottom: 0, right: 0, left: 0, top: 0,
     pointerEvents: "box-none",
   },
 
-  list: { paddingVertical: 16, paddingBottom: 100, flexGrow: 1 },
+  list: { paddingVertical: 12, paddingBottom: 8, flexGrow: 1 },
 
-  emptyState: { flex: 1, alignItems: "center", paddingTop: 80, paddingHorizontal: 24 },
-  emptyIcon: { fontSize: 52, marginBottom: 14 },
-  emptyTitle: { color: "#64748b", fontSize: 17, fontWeight: "600", marginBottom: 28 },
+  emptyState: { flex: 1, alignItems: "center", paddingTop: 70, paddingHorizontal: 32 },
+  emptyAvatar: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: "#6366f1", alignItems: "center", justifyContent: "center",
+    marginBottom: 16,
+    shadowColor: "#6366f1", shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 4 },
+  },
+  emptyAvatarText: { color: "#fff", fontSize: 30, fontWeight: "800" },
+  emptyName: { color: "#e2e8f0", fontSize: 20, fontWeight: "700", marginBottom: 4 },
+  emptyTitle: { color: "#3d5475", fontSize: 14, fontWeight: "500", marginBottom: 36 },
   suggestionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "center" },
   suggestion: {
-    backgroundColor: "#0f1729", borderRadius: 20,
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderWidth: 1, borderColor: "#1e293b",
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#0d1628", borderRadius: 24,
+    paddingHorizontal: 16, paddingVertical: 11,
+    borderWidth: 1, borderColor: "#1a2540",
   },
-  suggestionText: { color: "#64748b", fontSize: 13 },
+  suggestionIcon: { fontSize: 16 },
+  suggestionText: { color: "#64748b", fontSize: 13.5, fontWeight: "500" },
 });
