@@ -39,6 +39,7 @@ PENDING_REPLIES_FILE = os.path.join(DATA_DIR, "pending_replies.json")
 AI_FEED_FILE = os.path.join(DATA_DIR, "ai_feed.json")
 SUGGESTIONS_FILE = os.path.join(DATA_DIR, "suggestions.json")
 TRENDING_FILE = os.path.join(DATA_DIR, "trending_articles.json")
+GMAIL_WATERMARK_FILE = os.path.join(DATA_DIR, "gmail_watermark.json")
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -851,37 +852,44 @@ def _get_plain_text(msg) -> str:
     return clean.strip()[:1200]
 
 
-def _gmail_fetch_unread(gmail_user: str, gmail_pass: str) -> list[dict]:
-    """Connect to Gmail via IMAP, fetch UNSEEN emails, mark as read."""
+def _gmail_fetch_new(gmail_user: str, gmail_pass: str) -> list[dict]:
+    """Fetch emails newer than the stored UID watermark. Does not rely on SEEN flag."""
     try:
+        watermarks = _load_json(GMAIL_WATERMARK_FILE, {})
+        last_uid = watermarks.get(gmail_user, 0)
+
         imap = imaplib.IMAP4_SSL("imap.gmail.com")
         imap.login(gmail_user, gmail_pass)
         imap.select("INBOX")
 
-        status, data = imap.search(None, "UNSEEN")
+        # Fetch by UID greater than watermark
+        search_criterion = f"UID {last_uid + 1}:*"
+        status, data = imap.uid("search", None, search_criterion)
         if status != "OK" or not data[0]:
             imap.logout()
             return []
 
-        # Only process the 10 most recent unread emails to avoid timeouts
-        all_nums = data[0].split()
-        nums_to_fetch = all_nums[-10:]
+        all_uids = data[0].split()
+        if not all_uids:
+            imap.logout()
+            return []
+
+        # Only process the 10 most recent to avoid timeouts
+        uids_to_fetch = all_uids[-10:]
+        new_watermark = int(uids_to_fetch[-1])
 
         results = []
-        for num in nums_to_fetch:
-            status, raw = imap.fetch(num, "(RFC822)")
-            if status != "OK":
+        for uid in uids_to_fetch:
+            status, raw = imap.uid("fetch", uid, "(RFC822)")
+            if status != "OK" or not raw or raw[0] is None:
                 continue
 
             msg = email_lib.message_from_bytes(raw[0][1])
-            message_id = msg.get("Message-ID", "").strip() or f"uid:{num.decode()}"
+            message_id = msg.get("Message-ID", "").strip() or f"uid:{uid.decode()}"
             subject    = _decode_str(msg.get("Subject", "(no subject)"))
             from_raw   = _decode_str(msg.get("From", ""))
             sender_email, sender_name = _extract_email_address(from_raw)
             body = _get_plain_text(msg)
-
-            # Mark as read
-            imap.store(num, "+FLAGS", "\\Seen")
 
             results.append({
                 "message_id": message_id,
@@ -892,6 +900,11 @@ def _gmail_fetch_unread(gmail_user: str, gmail_pass: str) -> list[dict]:
             })
 
         imap.logout()
+
+        # Update watermark
+        watermarks[gmail_user] = new_watermark
+        _save_json(GMAIL_WATERMARK_FILE, watermarks)
+
         return results
     except Exception as e:
         print(f"[gmail] IMAP error: {e}")
@@ -985,7 +998,7 @@ async def _poll_gmail_account(account: dict) -> int:
     gmail_pass = account["password"]
 
     print(f"[gmail:{nickname}] Polling inbox…")
-    emails = await asyncio.to_thread(_gmail_fetch_unread, gmail_user, gmail_pass)
+    emails = await asyncio.to_thread(_gmail_fetch_new, gmail_user, gmail_pass)
     if not emails:
         return 0
 
@@ -1105,14 +1118,17 @@ async def gmail_debug():
             imap = imaplib.IMAP4_SSL("imap.gmail.com")
             imap.login(acct["user"], acct["password"])
             imap.select("INBOX")
-            _, data = imap.search(None, "UNSEEN")
-            unseen_ids = data[0].split() if data[0] else []
+            _, data = imap.uid("search", None, "ALL")
+            all_ids = data[0].split() if data[0] else []
+            watermarks = _load_json(GMAIL_WATERMARK_FILE, {})
+            last_uid = watermarks.get(acct["user"], 0)
             imap.logout()
             results.append({
                 "nickname": acct.get("nickname", "Gmail"),
                 "user": acct["user"],
                 "status": "ok",
-                "unseen_count": len(unseen_ids),
+                "total_emails": len(all_ids),
+                "last_processed_uid": last_uid,
             })
         except Exception as e:
             results.append({
