@@ -20,16 +20,19 @@ interface MenuItem {
 interface Props {
   items: MenuItem[];
   onLongPress?: () => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
+// Quarter-to-half circle arc (5 positions, radius ~85)
 const ARC_POSITIONS = [
-  { x: 0,  y: -82 },
-  { x: 40, y: -71 },
-  { x: 71, y: -40 },
-  { x: 82, y: 0  },
+  { x: 0,  y: -85 },
+  { x: 45, y: -74 },
+  { x: 74, y: -45 },
+  { x: 85, y: 0  },
+  { x: 74, y: 45 },
 ];
 
-export default function FloatingMenu({ items, onLongPress }: Props) {
+export default function FloatingMenu({ items, onLongPress, onOpenChange }: Props) {
   const [open, setOpen] = useState(false);
   const rotation   = useRef(new Animated.Value(0)).current;
   const overlayOp  = useRef(new Animated.Value(0)).current;
@@ -54,11 +57,11 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
   }, [open]);
 
   const openMenu = () => {
-    // Reset all values to 0 before animating in
     itemAnims.forEach((a) => a.setValue(0));
     overlayOp.setValue(0);
     rotation.setValue(0);
     setOpen(true);
+    onOpenChange?.(true);
 
     Animated.parallel([
       Animated.spring(rotation,  { toValue: 1, useNativeDriver: true, tension: 130, friction: 8 }),
@@ -89,8 +92,8 @@ export default function FloatingMenu({ items, onLongPress }: Props) {
       ),
     ]).start(({ finished }) => {
       if (finished) {
-        // Only hide items after animation fully completes
         setOpen(false);
+        onOpenChange?.(false);
       }
     });
   };
@@ -203,7 +206,7 @@ const styles = StyleSheet.create({
   },
   itemContainer: {
     position: "absolute",
-    bottom: 28,
+    bottom: 50,
     left: 20,
     flexDirection: "row",
     alignItems: "center",
@@ -246,7 +249,7 @@ const styles = StyleSheet.create({
   labelText: { color: "#e2e8f0", fontSize: 12, fontWeight: "600" },
   fabWrap: {
     position: "absolute",
-    bottom: 28,
+    bottom: 50,
     left: 20,
     zIndex: 20,
     shadowColor: "#6366f1",

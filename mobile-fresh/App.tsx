@@ -27,6 +27,7 @@ import SettingsModal from "./src/components/SettingsModal";
 import HistoryModal from "./src/components/HistoryModal";
 import PendingRepliesModal from "./src/components/PendingRepliesModal";
 import AiFeedModal from "./src/components/AiFeedModal";
+import TrendingModal from "./src/components/TrendingModal";
 import SuggestionBar from "./src/components/SuggestionBar";
 import FloatingMenu from "./src/components/FloatingMenu";
 
@@ -103,6 +104,8 @@ export default function App() {
   const [showPendingReplies, setShowPendingReplies] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [showAiFeed, setShowAiFeed] = useState(false);
+  const [showTrending, setShowTrending] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
   const [autoVoice, setAutoVoice] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
@@ -256,8 +259,8 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor="#080d1a" />
 
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Header — disabled while FAB menu is open */}
+      <View style={[styles.header, fabOpen && styles.dimmed]} pointerEvents={fabOpen ? "none" : "auto"}>
         <View style={styles.headerLeft}>
           <View style={styles.headerAvatar}>
             <Text style={styles.headerAvatarText}>R</Text>
@@ -275,7 +278,11 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView
+        style={[styles.flex, fabOpen && styles.dimmed]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        pointerEvents={fabOpen ? "none" : "auto"}
+      >
         <FlatList
           ref={listRef}
           data={messages}
@@ -317,11 +324,13 @@ export default function App() {
       <View style={styles.fabContainer} pointerEvents="box-none">
         <FloatingMenu
           onLongPress={handleClear}
+          onOpenChange={setFabOpen}
           items={[
+            { icon: "📰", label: "Trending",  onPress: () => setShowTrending(true),         color: "#ec4899" },
             { icon: "📡", label: "AI Radar",  onPress: () => setShowAiFeed(true),           color: "#6366f1" },
             { icon: "📥", label: "Inbox",     onPress: () => setShowPendingReplies(true),   color: "#f59e0b", badge: pendingCount },
-            { icon: "📋", label: "History",   onPress: () => setShowHistory(true),           color: "#10b981" },
-            { icon: "⚙️", label: "Settings",  onPress: () => setShowSettings(true),          color: "#64748b" },
+            { icon: "📋", label: "History",   onPress: () => setShowHistory(true),          color: "#10b981" },
+            { icon: "⚙️", label: "Settings",  onPress: () => setShowSettings(true),         color: "#64748b" },
           ]}
         />
       </View>
@@ -347,6 +356,12 @@ export default function App() {
         onCountChange={setPendingCount}
       />
 
+      <TrendingModal
+        visible={showTrending}
+        backendUrl={backendUrl}
+        onClose={() => setShowTrending(false)}
+      />
+
       <AiFeedModal
         visible={showAiFeed}
         backendUrl={backendUrl}
@@ -359,6 +374,7 @@ export default function App() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#080d1a" },
   flex: { flex: 1 },
+  dimmed: { opacity: 0.25 },
 
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
