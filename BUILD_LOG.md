@@ -1002,3 +1002,48 @@ away from asking about current events or any tool in their feed.
 | `mobile-fresh/src/components/AiFeedModal.tsx` | Question chips on each card, `openPlayground()` with initial question |
 | `mobile-fresh/src/components/PlaygroundModal.tsx` | `initialQuestion` prop — auto-opens chat tab + pre-fills input |
 | `mobile-fresh/App.tsx` | Import + render `<SuggestionBar>` above ChatInput |
+
+---
+
+## Phase 16 — Expo Go Fix & Railway Deployment Recovery
+
+### User Prompt
+```
+"its is working now" / "i do not see anything in the AI feed section" /
+"not able to see anything yet" / "update the build log and push"
+```
+
+### What Was Fixed
+
+**Expo Go crash (shortcut.ts):**
+- `react-native-siri-shortcut` loads but initializes with undefined native
+  internals in Expo Go — try/catch didn't help
+- Fix: detect Expo Go via `Constants.appOwnership === "expo"` and skip all
+  shortcut calls before they touch the native module
+
+**AI Feed empty (Railway not deploying):**
+- Railway was silently failing to deploy new commits because Nixpacks was
+  detecting `mobile-fresh/package.json` and trying to run `npm install`,
+  which failed due to peer dependency conflicts from `@expo/ngrok`
+- Fix: added `.railwayignore` to exclude `mobile-fresh/`, `mobile/`, and
+  `mac-companion/` from Railway builds
+- Once unblocked, 6 queued commits deployed in one go
+
+**AI Feed returning 0 items (Tavily fallback + JSON parsing):**
+- Old code returned `[]` if either Tavily or Anthropic key was missing
+- New code: Tavily is optional — falls back to Claude's knowledge base
+- Prompt was still saying "given these search results" when no results existed
+- JSON parsing didn't strip markdown fences before `json.loads()`
+- All three issues fixed; feed now returns 10 items per refresh
+
+**Pull-to-refresh conflict:**
+- iOS sheet dismiss gesture was intercepting pull-to-refresh, closing the modal
+- Fix: replaced `RefreshControl` with a **↻ Refresh** button in the header
+
+### Files Modified/Created
+| File | Change |
+|------|--------|
+| `mobile-fresh/src/utils/shortcut.ts` | `isExpoGo` guard using `Constants.appOwnership` |
+| `server.py` | Tavily optional fallback; fixed prompt; fixed JSON fence stripping; added `/ai-feed/debug` |
+| `mobile-fresh/src/components/AiFeedModal.tsx` | Replace pull-to-refresh with header Refresh button |
+| `.railwayignore` | Exclude mobile/mac dirs from Railway Nixpacks build |
