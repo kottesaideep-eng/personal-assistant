@@ -863,8 +863,12 @@ def _gmail_fetch_unread(gmail_user: str, gmail_pass: str) -> list[dict]:
             imap.logout()
             return []
 
+        # Only process the 10 most recent unread emails to avoid timeouts
+        all_nums = data[0].split()
+        nums_to_fetch = all_nums[-10:]
+
         results = []
-        for num in data[0].split():
+        for num in nums_to_fetch:
             status, raw = imap.fetch(num, "(RFC822)")
             if status != "OK":
                 continue
