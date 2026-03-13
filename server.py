@@ -279,32 +279,32 @@ async def _fetch_ai_feed() -> list[dict]:
 
     tavily_key = os.environ.get("TAVILY_API_KEY")
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not tavily_key or not anthropic_key:
-        print("[ai-feed] Missing API keys, skipping fetch")
+    if not anthropic_key:
+        print("[ai-feed] Missing ANTHROPIC_API_KEY, skipping fetch")
         return []
 
-    # Gather raw search results
+    # Gather raw search results via Tavily (optional — falls back to Claude knowledge)
     raw_results: list[dict] = []
-    async with httpx.AsyncClient(timeout=20) as client:
-        for query in FEED_SEARCH_QUERIES:
-            try:
-                resp = await client.post(
-                    "https://api.tavily.com/search",
-                    json={"query": query, "max_results": 5, "search_depth": "basic"},
-                    headers={"Authorization": f"Bearer {tavily_key}"},
-                )
-                data = resp.json()
-                for r in data.get("results", []):
-                    raw_results.append({
-                        "title": r.get("title", ""),
-                        "url": r.get("url", ""),
-                        "content": r.get("content", "")[:400],
-                    })
-            except Exception as e:
-                print(f"[ai-feed] Search error: {e}")
-
-    if not raw_results:
-        return []
+    if tavily_key:
+        async with httpx.AsyncClient(timeout=20) as client:
+            for query in FEED_SEARCH_QUERIES:
+                try:
+                    resp = await client.post(
+                        "https://api.tavily.com/search",
+                        json={"query": query, "max_results": 5, "search_depth": "basic"},
+                        headers={"Authorization": f"Bearer {tavily_key}"},
+                    )
+                    data = resp.json()
+                    for r in data.get("results", []):
+                        raw_results.append({
+                            "title": r.get("title", ""),
+                            "url": r.get("url", ""),
+                            "content": r.get("content", "")[:400],
+                        })
+                except Exception as e:
+                    print(f"[ai-feed] Search error: {e}")
+    else:
+        print("[ai-feed] No TAVILY_API_KEY — using Claude knowledge base")
 
     # Deduplicate by URL
     seen_urls: set[str] = set()
@@ -315,10 +315,13 @@ async def _fetch_ai_feed() -> list[dict]:
             unique_results.append(r)
 
     # Ask Claude to structure into clean feed items
-    raw_text = "\n\n".join(
-        f"Title: {r['title']}\nURL: {r['url']}\nSnippet: {r['content']}"
-        for r in unique_results
-    )
+    if unique_results:
+        raw_text = "Based on these search results:\n\n" + "\n\n".join(
+            f"Title: {r['title']}\nURL: {r['url']}\nSnippet: {r['content']}"
+            for r in unique_results
+        )
+    else:
+        raw_text = "Use your knowledge of the latest AI tools, models, open-source projects, and developer tools. Focus on things released or gaining popularity in the last few weeks."
 
     prompt = f"""You are curating an AI news feed for a software developer who wants to stay on top of new AI tools, models, libraries, and applications they can use personally or integrate into projects.
 
@@ -390,34 +393,31 @@ async def _fetch_suggestions() -> list[dict]:
 
     tavily_key = os.environ.get("TAVILY_API_KEY")
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not tavily_key or not anthropic_key:
+    if not anthropic_key:
         return []
-
-    search_queries = [
-        "biggest tech and AI news today",
-        "trending technology topics this week",
-        "new AI tools products launched this week",
-        "world news highlights today",
-    ]
 
     raw: list[str] = []
-    async with httpx.AsyncClient(timeout=15) as client:
-        for q in search_queries:
-            try:
-                resp = await client.post(
-                    "https://api.tavily.com/search",
-                    json={"query": q, "max_results": 4, "search_depth": "basic"},
-                    headers={"Authorization": f"Bearer {tavily_key}"},
-                )
-                for r in resp.json().get("results", []):
-                    raw.append(f"{r.get('title','')} — {r.get('content','')[:200]}")
-            except Exception as e:
-                print(f"[suggestions] search error: {e}")
+    if tavily_key:
+        search_queries = [
+            "biggest tech and AI news today",
+            "trending technology topics this week",
+            "new AI tools products launched this week",
+            "world news highlights today",
+        ]
+        async with httpx.AsyncClient(timeout=15) as client:
+            for q in search_queries:
+                try:
+                    resp = await client.post(
+                        "https://api.tavily.com/search",
+                        json={"query": q, "max_results": 4, "search_depth": "basic"},
+                        headers={"Authorization": f"Bearer {tavily_key}"},
+                    )
+                    for r in resp.json().get("results", []):
+                        raw.append(f"{r.get('title','')} — {r.get('content','')[:200]}")
+                except Exception as e:
+                    print(f"[suggestions] search error: {e}")
 
-    if not raw:
-        return []
-
-    snippets = "\n".join(f"- {r}" for r in raw[:20])
+    snippets = "\n".join(f"- {r}" for r in raw[:20]) if raw else "Use your knowledge of current tech, AI, and world events."
     prompt = f"""You are generating tappable question prompts for a personal assistant app.
 Based on the news snippets below, generate 10 short, curiosity-sparking questions a user might want to ask their AI assistant.
 
