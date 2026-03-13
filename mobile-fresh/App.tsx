@@ -145,6 +145,21 @@ export default function App() {
   // Register for push notifications once backend URL is known
   useEffect(() => {
     if (!backendUrl) return;
+
+    // Register notification category with action buttons
+    Notifications.setNotificationCategoryAsync("PENDING_REPLY", [
+      {
+        identifier: "SEND_REPLY",
+        buttonTitle: "Send ✓",
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: "DISMISS_REPLY",
+        buttonTitle: "Dismiss",
+        options: { isDestructive: true, opensAppToForeground: false },
+      },
+    ]).catch(() => {});
+
     registerForPushNotificationsAsync().then((token) => {
       if (token) {
         sendTokenToBackend(token, backendUrl);
@@ -152,9 +167,37 @@ export default function App() {
       }
     });
 
-    // Handle notification tap-to-open
-    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+    // Handle notification actions and taps
+    const responseSub = Notifications.addNotificationResponseReceivedListener(async (response) => {
       const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      const actionId = response.actionIdentifier;
+
+      if (actionId === "SEND_REPLY") {
+        const id = data?.id as string;
+        const draft = data?.draft as string;
+        if (id && draft) {
+          try {
+            await fetch(`${backendUrl}/pending-reply/${id}/approve`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ approved_text: draft }),
+            });
+          } catch (_) {}
+        }
+        return;
+      }
+
+      if (actionId === "DISMISS_REPLY") {
+        const id = data?.id as string;
+        if (id) {
+          try {
+            await fetch(`${backendUrl}/pending-reply/${id}/dismiss`, { method: "PATCH" });
+          } catch (_) {}
+        }
+        return;
+      }
+
+      // Default tap — open relevant modal
       if (data?.type === "pending_reply") {
         setShowPendingReplies(true);
       } else if (data?.type === "ai_feed") {

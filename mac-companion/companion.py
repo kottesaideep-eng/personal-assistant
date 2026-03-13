@@ -311,8 +311,8 @@ def message_watcher():
                 if record_id:
                     send_push(
                         title=f"💬 iMessage from {sender_name}",
-                        body="Tap to review Roar's draft reply",
-                        data={"type": "pending_reply", "id": record_id},
+                        body=draft,
+                        data={"type": "pending_reply", "id": record_id, "draft": draft, "categoryId": "PENDING_REPLY"},
                     )
 
                 watermark = max(watermark, rowid)
@@ -383,8 +383,8 @@ def email_watcher():
                 if record_id:
                     send_push(
                         title=f"✉️ Email from {sender_name}",
-                        body=f"{subject}",
-                        data={"type": "pending_reply", "id": record_id},
+                        body=draft,
+                        data={"type": "pending_reply", "id": record_id, "draft": draft, "categoryId": "PENDING_REPLY"},
                     )
 
         except Exception as e:

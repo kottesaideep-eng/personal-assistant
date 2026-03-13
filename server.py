@@ -1050,7 +1050,8 @@ async def _poll_gmail_account(account: dict) -> int:
                                 "title": f"✉️ [{nickname}] Email from {sender_name}",
                                 "body": subject,
                                 "sound": "default",
-                                "data": {"type": "pending_reply", "id": record["id"]},
+                                "data": {"type": "pending_reply", "id": record["id"], "draft": draft},
+                                "categoryId": "PENDING_REPLY",
                             },
                         )
                     except Exception:

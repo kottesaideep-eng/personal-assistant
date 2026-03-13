@@ -1376,3 +1376,45 @@ Set a single `GMAIL_ACCOUNTS` variable with a JSON array:
 | `server.py` | Multi-account support, _get_gmail_accounts, per-account routing |
 | `mobile-fresh/src/types.ts` | gmail_account, gmail_nickname on PendingReplyRecord |
 | `mobile-fresh/src/components/PendingRepliesModal.tsx` | Show nickname in source badge |
+
+---
+
+## Phase 24 — Notification Action Buttons (Send ✓ / Dismiss ✗)
+
+### User Prompt
+```
+"Now can you create an auto reply for every email i get, then promptly draft an auto reply
+and ask me to confirm if i want to send it or not" → option 3: quick approve/reject on notification
+```
+
+### Changes
+
+**App.tsx:**
+- Register `PENDING_REPLY` notification category with two actions:
+  - **Send ✓** — approves and sends reply in background (no app open required)
+  - **Dismiss** — dismisses the pending reply in background
+- Notification response listener now handles `SEND_REPLY` and `DISMISS_REPLY` action identifiers directly via API calls
+- Default tap still opens the 📥 Inbox modal as before
+
+**mac-companion/companion.py:**
+- iMessage push notification body now shows the draft text (not generic "Tap to review")
+- Email push notification body now shows the draft text
+- Both pass `categoryId: "PENDING_REPLY"` and `draft` in notification data payload
+
+**server.py (Gmail poller):**
+- Notification payload includes `draft` and `categoryId: "PENDING_REPLY"` so action buttons work
+
+### How it works
+1. Email/iMessage arrives → draft generated → push notification sent
+2. Notification appears on lock screen showing the draft text
+3. **Long-press or swipe** the notification to reveal action buttons
+4. Tap **Send ✓** → reply sent silently in background, no app needed
+5. Tap **Dismiss** → draft discarded silently in background
+6. Tap notification body → opens Inbox modal as usual
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `mobile-fresh/App.tsx` | Notification category registration + action handlers |
+| `mac-companion/companion.py` | Draft text in notification body + categoryId in data |
+| `server.py` | Draft text + categoryId in Gmail push notification data |
