@@ -1093,3 +1093,41 @@ away from asking about current events or any tool in their feed.
 | `mobile-fresh/src/components/ChatInput.tsx` | Send button inside input pill |
 | `mobile-fresh/src/components/SuggestionBar.tsx` | Cleaner chips, no label row |
 | `mobile-fresh/App.tsx` | Header, empty state, typing indicator redesigned |
+
+---
+
+## Phase 18 — Floating Menu Repositioned & Interactivity Improvements
+
+### User Prompt
+```
+"can you make the floating buttons a bit more interactive and not at the bottom right
+find a more suitable position for it"
+```
+
+### What Was Changed
+
+**FloatingMenu.tsx — repositioned to bottom-left:**
+- Moved from `bottom-right` to `bottom-left` to avoid conflicting with the send button
+- Items fan out in a **quarter-circle arc** (12 o'clock → 3 o'clock) going upward and to the right
+- Labels now appear **to the right** of each item button (natural reading direction from left side)
+
+**FloatingMenu.tsx — interactivity:**
+- FAB has an **idle pulse animation** (subtle scale breathing) when the menu is closed
+- FAB shadow glow **intensifies** when the menu opens
+- Each item button has its own **accent color** (tinted background + colored border + glow shadow)
+- Item press triggers a **bounce animation** before the menu closes
+- Items animate in with a **stagger spring** + overshoot (0.6 → 1.08 → 1.0 scale)
+- Labels slide in from the left as items appear
+
+**App.tsx:**
+- Each FloatingMenu item now passes a `color` prop:
+  - AI Radar: indigo `#6366f1`
+  - Inbox: amber `#f59e0b`
+  - History: emerald `#10b981`
+  - Settings: slate `#64748b`
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `mobile-fresh/src/components/FloatingMenu.tsx` | Repositioned, arc fan, per-color items, pulse/bounce/glow |
+| `mobile-fresh/App.tsx` | Added `color` prop to each menu item |

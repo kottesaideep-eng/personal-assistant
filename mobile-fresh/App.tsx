@@ -318,10 +318,10 @@ export default function App() {
         <FloatingMenu
           onLongPress={handleClear}
           items={[
-            { icon: "📡", label: "AI Radar", onPress: () => setShowAiFeed(true) },
-            { icon: "📥", label: "Inbox", onPress: () => setShowPendingReplies(true), badge: pendingCount },
-            { icon: "📋", label: "History", onPress: () => setShowHistory(true) },
-            { icon: "⚙️", label: "Settings", onPress: () => setShowSettings(true) },
+            { icon: "📡", label: "AI Radar",  onPress: () => setShowAiFeed(true),           color: "#6366f1" },
+            { icon: "📥", label: "Inbox",     onPress: () => setShowPendingReplies(true),   color: "#f59e0b", badge: pendingCount },
+            { icon: "📋", label: "History",   onPress: () => setShowHistory(true),           color: "#10b981" },
+            { icon: "⚙️", label: "Settings",  onPress: () => setShowSettings(true),          color: "#64748b" },
           ]}
         />
       </View>
