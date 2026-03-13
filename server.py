@@ -1,10 +1,17 @@
 """FastAPI server — exposes the personal assistant as a REST API."""
 
 import asyncio
+import email as email_lib
+import imaplib
 import json
 import os
+import re
+import smtplib
 import uuid
 from datetime import datetime
+from email.header import decode_header
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import List, Optional
 
 import httpx
@@ -232,6 +239,23 @@ async def approve_pending_reply(reply_id: str, req: ApproveRequest):
             r["status"] = "approved"
             r["approved_text"] = req.approved_text
             _save_json(PENDING_REPLIES_FILE, records)
+
+            # Auto-send email replies from Railway via Gmail SMTP
+            if r.get("source") == "email":
+                gmail_user = os.environ.get("GMAIL_USER")
+                gmail_pass = os.environ.get("GMAIL_APP_PASSWORD")
+                if gmail_user and gmail_pass:
+                    sent = await asyncio.to_thread(
+                        _gmail_send,
+                        gmail_user, gmail_pass,
+                        r.get("sender_email") or r.get("sender_handle", ""),
+                        r.get("sender_name", ""),
+                        r.get("subject", ""),
+                        req.approved_text,
+                    )
+                    if sent:
+                        r["status"] = "dismissed"
+                        _save_json(PENDING_REPLIES_FILE, records)
             return r
     raise HTTPException(status_code=404, detail="Reply not found")
 
@@ -759,6 +783,273 @@ async def refresh_trending_articles():
     return {"count": len(articles)}
 
 
+# ── Gmail Poller ──────────────────────────────────────────────────────────────
+
+NOREPLY_PATTERNS = [
+    "noreply", "no-reply", "donotreply", "mailer-daemon",
+    "notifications@", "updates@", "alerts@", "newsletter@",
+    "automated@", "bounce@",
+]
+
+
+def _decode_str(value: str | bytes | None) -> str:
+    """Decode a possibly-encoded email header value to a plain string."""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    parts = decode_header(value)
+    decoded = []
+    for part, charset in parts:
+        if isinstance(part, bytes):
+            decoded.append(part.decode(charset or "utf-8", errors="replace"))
+        else:
+            decoded.append(part)
+    return "".join(decoded).strip()
+
+
+def _extract_email_address(from_header: str) -> tuple[str, str]:
+    """Return (email_address, display_name) from a From header."""
+    match = re.search(r'<([^>]+)>', from_header)
+    if match:
+        addr = match.group(1).strip()
+        name_match = re.match(r'^"?(.+?)"?\s*<', from_header)
+        name = name_match.group(1).strip().strip('"') if name_match else addr
+    else:
+        addr = from_header.strip()
+        name = addr
+    return addr, name
+
+
+def _get_plain_text(msg) -> str:
+    """Extract plain-text body from an email.message.Message object."""
+    body = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            ct = part.get_content_type()
+            cd = str(part.get("Content-Disposition", ""))
+            if ct == "text/plain" and "attachment" not in cd:
+                payload = part.get_payload(decode=True)
+                charset = part.get_content_charset() or "utf-8"
+                body = payload.decode(charset, errors="replace")
+                break
+    else:
+        payload = msg.get_payload(decode=True)
+        charset = msg.get_content_charset() or "utf-8"
+        if payload:
+            body = payload.decode(charset, errors="replace")
+
+    # Strip quoted reply lines ("> ...")
+    clean = "\n".join(
+        ln for ln in body.splitlines()
+        if not ln.strip().startswith(">")
+    )
+    return clean.strip()[:1200]
+
+
+def _gmail_fetch_unread(gmail_user: str, gmail_pass: str) -> list[dict]:
+    """Connect to Gmail via IMAP, fetch UNSEEN emails, mark as read."""
+    try:
+        imap = imaplib.IMAP4_SSL("imap.gmail.com")
+        imap.login(gmail_user, gmail_pass)
+        imap.select("INBOX")
+
+        status, data = imap.search(None, "UNSEEN")
+        if status != "OK" or not data[0]:
+            imap.logout()
+            return []
+
+        results = []
+        for num in data[0].split():
+            status, raw = imap.fetch(num, "(RFC822)")
+            if status != "OK":
+                continue
+
+            msg = email_lib.message_from_bytes(raw[0][1])
+            message_id = msg.get("Message-ID", "").strip() or f"uid:{num.decode()}"
+            subject    = _decode_str(msg.get("Subject", "(no subject)"))
+            from_raw   = _decode_str(msg.get("From", ""))
+            sender_email, sender_name = _extract_email_address(from_raw)
+            body = _get_plain_text(msg)
+
+            # Mark as read
+            imap.store(num, "+FLAGS", "\\Seen")
+
+            results.append({
+                "message_id": message_id,
+                "subject": subject,
+                "sender_email": sender_email,
+                "sender_name": sender_name,
+                "body": body,
+            })
+
+        imap.logout()
+        return results
+    except Exception as e:
+        print(f"[gmail] IMAP error: {e}")
+        return []
+
+
+def _gmail_send(gmail_user: str, gmail_pass: str,
+                to_addr: str, to_name: str,
+                subject: str, body: str) -> bool:
+    """Send an email reply via Gmail SMTP."""
+    try:
+        re_subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+        msg = MIMEMultipart()
+        msg["From"]    = gmail_user
+        msg["To"]      = f"{to_name} <{to_addr}>" if to_name else to_addr
+        msg["Subject"] = re_subject
+        msg.attach(MIMEText(body, "plain"))
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(gmail_user, gmail_pass)
+            server.send_message(msg)
+        print(f"[gmail] Sent reply to {to_addr}")
+        return True
+    except Exception as e:
+        print(f"[gmail] SMTP error: {e}")
+        return False
+
+
+async def _draft_reply_text(sender_name: str, message: str,
+                            subject: str | None = None) -> str | None:
+    """Call Claude Haiku to draft a short email reply. Returns text or None."""
+    import anthropic as _anthropic
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not anthropic_key:
+        return None
+
+    subject_line = f"\nSubject: {subject}" if subject else ""
+    system = (
+        "You are drafting a brief, professional reply on behalf of the user to an email. "
+        "Write 2-5 sentences that are clear and appropriate in tone. "
+        "Output only the reply text — no greeting header, no signature, no extra commentary."
+    )
+    messages = [{
+        "role": "user",
+        "content": f"From: {sender_name}{subject_line}\n\n{message}\n\nDraft a brief reply:",
+    }]
+    try:
+        ac = _anthropic.Anthropic(api_key=anthropic_key)
+        msg = await asyncio.to_thread(
+            lambda: ac.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=300,
+                system=system,
+                messages=messages,
+            )
+        )
+        return msg.content[0].text.strip()
+    except Exception as e:
+        print(f"[gmail] Draft error: {e}")
+        return None
+
+
+async def _poll_gmail() -> int:
+    """Poll Gmail inbox, draft replies, push to phone. Returns count of new items."""
+    gmail_user = os.environ.get("GMAIL_USER")
+    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD")
+    if not gmail_user or not gmail_pass:
+        return 0
+
+    print("[gmail] Polling inbox…")
+    emails = await asyncio.to_thread(_gmail_fetch_unread, gmail_user, gmail_pass)
+    if not emails:
+        return 0
+
+    # Load existing records to skip already-processed message IDs
+    existing = _load_json(PENDING_REPLIES_FILE, [])
+    existing_chat_ids = {r.get("chat_id", "") for r in existing}
+
+    new_count = 0
+    for em in emails:
+        chat_id = f"email:{em['message_id']}"
+        if chat_id in existing_chat_ids:
+            continue
+
+        sender_email = em["sender_email"]
+        sender_name  = em["sender_name"]
+        subject      = em["subject"]
+        body         = em["body"]
+
+        # Skip automated/noreply senders
+        if any(p in sender_email.lower() for p in NOREPLY_PATTERNS):
+            print(f"[gmail] Skipping automated sender: {sender_email}")
+            continue
+
+        if not body.strip():
+            continue
+
+        print(f"[gmail] New email from {sender_name} <{sender_email}>: {subject[:50]}")
+
+        draft = await _draft_reply_text(sender_name, body, subject)
+        if not draft:
+            continue
+
+        record = {
+            "id": str(uuid.uuid4()),
+            "sender_name": sender_name,
+            "sender_handle": sender_email,
+            "chat_id": chat_id,
+            "original_message": body,
+            "draft_reply": draft,
+            "source": "email",
+            "subject": subject,
+            "sender_email": sender_email,
+            "status": "pending",
+            "approved_text": None,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+        }
+        records = _load_json(PENDING_REPLIES_FILE, [])
+        records.append(record)
+        _save_json(PENDING_REPLIES_FILE, records)
+        existing_chat_ids.add(chat_id)
+        new_count += 1
+
+        # Push notify
+        devices = _load_json(DEVICES_FILE, [])
+        tokens = [d["token"] for d in devices if d.get("token")]
+        if tokens:
+            async with httpx.AsyncClient() as client:
+                for token in tokens:
+                    try:
+                        await client.post(
+                            "https://exp.host/--/api/v2/push/send",
+                            json={
+                                "to": token,
+                                "title": f"✉️ Email from {sender_name}",
+                                "body": subject,
+                                "sound": "default",
+                                "data": {"type": "pending_reply", "id": record["id"]},
+                            },
+                        )
+                    except Exception:
+                        pass
+
+    print(f"[gmail] {new_count} new emails queued")
+    return new_count
+
+
+@app.get("/gmail/status")
+async def gmail_status():
+    """Check whether Gmail credentials are configured."""
+    gmail_user = os.environ.get("GMAIL_USER")
+    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD")
+    return {
+        "configured": bool(gmail_user and gmail_pass),
+        "account": gmail_user or None,
+    }
+
+
+@app.post("/gmail/poll")
+async def gmail_poll_now():
+    """Manually trigger a Gmail inbox poll."""
+    count = await _poll_gmail()
+    return {"new_emails": count}
+
+
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
@@ -768,6 +1059,7 @@ async def start_scheduler():
     scheduler.add_job(_fetch_ai_feed, "cron", hour=8, minute=0)
     scheduler.add_job(_fetch_suggestions, "cron", hour=7, minute=0)
     scheduler.add_job(_fetch_trending_articles, "cron", hour=7, minute=30)
+    scheduler.add_job(_poll_gmail, "interval", minutes=5)
     scheduler.start()
 
 

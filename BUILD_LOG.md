@@ -1247,3 +1247,88 @@ In System Settings → Privacy & Security → Automation:
 | `mac-companion/start.sh` | Mail automation permission reminder |
 | `mobile-fresh/src/types.ts` | source, subject, sender_email on PendingReplyRecord |
 | `mobile-fresh/src/components/PendingRepliesModal.tsx` | Source badge, subject line, email label |
+
+---
+
+## Phase 21 — UI Overhaul: Separate Trending Modal + FAB Disable Background
+
+### User Prompts
+```
+"can you separate the section for Top trending and make it separate like AI radar,
+and also when the floating buttons are enabled disable the other buttons that are
+present in the background"
+```
+
+### Changes
+
+**TrendingModal.tsx (new file):**
+- Standalone modal for top trending articles (separated from AiFeedModal)
+- Full vertical card list with numbered index badge, category badge (color-coded), source name, title, summary
+- "Read article →" taps open source URL
+- Pink (#ec4899) accent color
+- Independent ↻ Refresh button
+
+**AiFeedModal.tsx:**
+- Stripped back to AI Radar only — no trending section
+- Clean vertical FlatList of AI tools/models cards with "Try It" + playground question chips
+
+**App.tsx:**
+- Added `showTrending` state + `TrendingModal` import
+- Added `fabOpen` state; passed `onOpenChange` to `FloatingMenu`
+- Header and chat area get `pointerEvents="none"` + `opacity: 0.25` when FAB is open
+- 5 FAB items: 📰 Trending, 📡 AI Radar, 📥 Inbox, 📋 History, ⚙️ Settings
+
+**FloatingMenu.tsx — multiple bug fixes:**
+- Removed `glowAnim` (mixed `useNativeDriver: false` shadow with `true` scale → crash)
+- Removed `Animated.multiply(scale, pressAnims[i])` — split into inner `Animated.View`
+- Items now conditionally rendered (`{open && items.map(...)}`) instead of always-rendered with animated opacity — fixes items persisting after close
+- `setOpen(false)` called inside animation `.start()` callback (after completion)
+- Added `onOpenChange` prop
+- Moved FAB to bottom-left, quarter-circle arc with 5 positions (radius ~85)
+- Idle pulse animation on FAB when closed
+
+### Files Modified/Created
+| File | Change |
+|------|--------|
+| `mobile-fresh/src/components/TrendingModal.tsx` | New file — standalone trending articles modal |
+| `mobile-fresh/src/components/AiFeedModal.tsx` | Stripped to AI Radar only |
+| `mobile-fresh/src/components/FloatingMenu.tsx` | Multiple bug fixes + arc positioning + onOpenChange |
+| `mobile-fresh/App.tsx` | showTrending state, fabOpen disabling, 5 FAB items |
+
+---
+
+## Phase 22 — Gmail Poller on Railway Backend
+
+### User Prompt
+```
+"Add a Gmail poller to the Railway backend"
+```
+
+### Changes
+
+**server.py:**
+- Added stdlib imports: `imaplib`, `smtplib`, `email`, `re`, `MIMEMultipart`, `MIMEText`, `decode_header`
+- Gmail helper functions:
+  - `_decode_str()` — handles MIME header encoding
+  - `_extract_email_address()` — parses "Name <email>" format
+  - `_get_plain_text()` — extracts plain text from multipart email
+  - `_gmail_fetch_unread()` — connects via IMAP, fetches unread emails, returns list
+  - `_gmail_send()` — sends reply via SMTP (TLS port 587)
+  - `_draft_reply_text()` — Claude Haiku draft for email replies
+  - `_poll_gmail()` — orchestrates fetch → draft → post to `/pending-reply`
+- New endpoints:
+  - `GET /gmail/status` — returns whether Gmail creds are configured + last poll time
+  - `POST /gmail/poll` — manual trigger for Gmail poll
+- `approve_pending_reply` updated: when `source == "email"` and Gmail creds present, auto-sends via SMTP then marks as `dismissed`
+- Scheduler: `_poll_gmail` runs every 5 minutes via APScheduler
+
+### Required Railway Environment Variables
+| Variable | Description |
+|----------|-------------|
+| `GMAIL_USER` | Gmail address (e.g. user@gmail.com) |
+| `GMAIL_APP_PASSWORD` | Gmail App Password (not your main password — generate in Google Account → Security → App Passwords) |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server.py` | Gmail IMAP/SMTP poller, /gmail/status, /gmail/poll endpoints, scheduler job |
