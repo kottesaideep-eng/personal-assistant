@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Platform,
   ActionSheetIOS,
   Alert,
+  Animated,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import Markdown from "react-native-markdown-display";
@@ -94,8 +95,24 @@ export default function MessageBubble({ message }: Props) {
     minute: "2-digit",
   });
 
+  const slideAnim = useRef(new Animated.Value(18)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 120, friction: 10, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
   return (
-    <View style={[styles.row, isUser ? styles.rowUser : styles.rowAssistant]}>
+    <Animated.View
+      style={[
+        styles.row,
+        isUser ? styles.rowUser : styles.rowAssistant,
+        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+      ]}
+    >
       {!isUser && (
         <View style={styles.avatar}>
           <Text style={styles.avatarEmoji}>🤖</Text>
@@ -120,7 +137,7 @@ export default function MessageBubble({ message }: Props) {
           {time}
         </Text>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 }
 

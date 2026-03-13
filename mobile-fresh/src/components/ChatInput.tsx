@@ -35,8 +35,18 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
   const [text, setText] = useState("");
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [focused, setFocused] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(glowAnim, {
+      toValue: focused ? 1 : 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [focused]);
 
   // Voice setup — skip if native module unavailable (Expo Go)
   useEffect(() => {
@@ -169,7 +179,16 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
         </TouchableOpacity>
 
         {/* Text input */}
-        <View style={styles.inputWrapper}>
+        <Animated.View style={[
+          styles.inputWrapper,
+          {
+            borderColor: glowAnim.interpolate({ inputRange: [0, 1], outputRange: ["#334155", "#6366f1"] }),
+            shadowOpacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.3] }),
+            shadowColor: "#6366f1",
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 0 },
+          }
+        ]}>
           <TextInput
             style={styles.input}
             value={text}
@@ -180,8 +199,10 @@ export default function ChatInput({ onSend, disabled, autoActivateMic }: Props) 
             maxLength={4000}
             editable={!disabled}
             blurOnSubmit={false}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
           />
-        </View>
+        </Animated.View>
 
         {/* Mic or Send button */}
         {showMic ? (
@@ -264,8 +285,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#1e293b",
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#334155",
+    borderWidth: 1.5,
     paddingHorizontal: 16,
     paddingVertical: 10,
     minHeight: 46,

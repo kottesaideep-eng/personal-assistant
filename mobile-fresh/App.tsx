@@ -28,6 +28,7 @@ import HistoryModal from "./src/components/HistoryModal";
 import PendingRepliesModal from "./src/components/PendingRepliesModal";
 import AiFeedModal from "./src/components/AiFeedModal";
 import SuggestionBar from "./src/components/SuggestionBar";
+import FloatingMenu from "./src/components/FloatingMenu";
 
 const BACKEND_URL_KEY = "BACKEND_URL";
 let msgCounter = 0;
@@ -252,46 +253,26 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor="#0a0f1e" />
+      <StatusBar barStyle="light-content" backgroundColor="#080d1a" />
 
-      {/* Header */}
+      {/* Clean Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.headerIcon}>
             <Text style={{ fontSize: 20 }}>🤖</Text>
           </View>
           <View>
-            <Text style={styles.headerTitle}>Roar — at your service</Text>
+            <Text style={styles.headerTitle}>Roar</Text>
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, backendUrl ? styles.statusOnline : styles.statusOffline]} />
-              <Text style={styles.statusText}>{backendUrl ? "Online" : "Not configured"}</Text>
+              <Text style={styles.statusText}>{backendUrl ? "Ready" : "Not configured"}</Text>
             </View>
           </View>
         </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleClear} style={styles.iconBtn}>
-            <Text style={styles.iconBtnText}>✕</Text>
-          </TouchableOpacity>
-          <View>
-            <TouchableOpacity onPress={() => setShowPendingReplies(true)} style={styles.iconBtn}>
-              <Text style={styles.iconBtnText}>📥</Text>
-            </TouchableOpacity>
-            {pendingCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{pendingCount > 99 ? "99+" : pendingCount}</Text>
-              </View>
-            )}
-          </View>
-          <TouchableOpacity onPress={() => setShowAiFeed(true)} style={styles.iconBtn}>
-            <Text style={styles.iconBtnText}>📡</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowHistory(true)} style={styles.iconBtn}>
-            <Text style={styles.iconBtnText}>📋</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowSettings(true)} style={styles.iconBtn}>
-            <Text style={styles.iconBtnText}>⚙️</Text>
-          </TouchableOpacity>
-        </View>
+        {/* New chat button — top right only */}
+        <TouchableOpacity onPress={handleClear} style={styles.newChatBtn}>
+          <Text style={styles.newChatText}>+ New</Text>
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -322,6 +303,19 @@ export default function App() {
         <SuggestionBar backendUrl={backendUrl} onSelect={(prompt) => handleSend(prompt)} />
         <ChatInput onSend={handleSend} disabled={loading} autoActivateMic={autoVoice} />
       </KeyboardAvoidingView>
+
+      {/* Floating Action Menu */}
+      <View style={styles.fabContainer} pointerEvents="box-none">
+        <FloatingMenu
+          onLongPress={handleClear}
+          items={[
+            { icon: "📡", label: "AI Radar", onPress: () => setShowAiFeed(true) },
+            { icon: "📥", label: "Inbox", onPress: () => setShowPendingReplies(true), badge: pendingCount },
+            { icon: "📋", label: "History", onPress: () => setShowHistory(true) },
+            { icon: "⚙️", label: "Settings", onPress: () => setShowSettings(true) },
+          ]}
+        />
+      </View>
 
       <SettingsModal
         visible={showSettings}
@@ -354,53 +348,50 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0a0f1e" },
+  safe: { flex: 1, backgroundColor: "#080d1a" },
   flex: { flex: 1 },
 
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: "#0a0f1e",
-    borderBottomWidth: 1, borderBottomColor: "#1e293b",
+    paddingHorizontal: 18, paddingVertical: 14,
+    backgroundColor: "#080d1a",
+    borderBottomWidth: 1, borderBottomColor: "#0f1729",
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   headerIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "#1e293b", alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "#334155",
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: "#6366f1", alignItems: "center", justifyContent: "center",
+    shadowColor: "#6366f1", shadowOpacity: 0.45, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
   },
-  headerTitle: { color: "#f1f5f9", fontSize: 15, fontWeight: "700" },
+  headerTitle: { color: "#f1f5f9", fontSize: 18, fontWeight: "800", letterSpacing: 0.3 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusOnline: { backgroundColor: "#22c55e" },
-  statusOffline: { backgroundColor: "#64748b" },
-  statusText: { color: "#64748b", fontSize: 12 },
-  headerActions: { flexDirection: "row", gap: 4 },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#1e293b", alignItems: "center", justifyContent: "center",
+  statusOffline: { backgroundColor: "#475569" },
+  statusText: { color: "#475569", fontSize: 11 },
+
+  newChatBtn: {
+    paddingHorizontal: 14, paddingVertical: 7,
+    backgroundColor: "#0f1729",
+    borderRadius: 20, borderWidth: 1, borderColor: "#1e293b",
   },
-  iconBtnText: { fontSize: 16 },
+  newChatText: { color: "#6366f1", fontSize: 13, fontWeight: "700" },
 
-  badge: {
-    position: "absolute", top: -4, right: -4,
-    backgroundColor: "#ef4444", borderRadius: 8,
-    minWidth: 16, height: 16,
-    alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 3,
+  fabContainer: {
+    position: "absolute", bottom: 0, right: 0, left: 0, top: 0,
+    pointerEvents: "box-none",
   },
-  badgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
 
-  list: { paddingVertical: 16, paddingBottom: 8, flexGrow: 1 },
+  list: { paddingVertical: 16, paddingBottom: 100, flexGrow: 1 },
 
-  emptyState: { flex: 1, alignItems: "center", paddingTop: 60, paddingHorizontal: 24 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { color: "#94a3b8", fontSize: 18, fontWeight: "600", marginBottom: 24 },
+  emptyState: { flex: 1, alignItems: "center", paddingTop: 80, paddingHorizontal: 24 },
+  emptyIcon: { fontSize: 52, marginBottom: 14 },
+  emptyTitle: { color: "#64748b", fontSize: 17, fontWeight: "600", marginBottom: 28 },
   suggestionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "center" },
   suggestion: {
-    backgroundColor: "#1e293b", borderRadius: 20,
+    backgroundColor: "#0f1729", borderRadius: 20,
     paddingHorizontal: 16, paddingVertical: 10,
-    borderWidth: 1, borderColor: "#334155",
+    borderWidth: 1, borderColor: "#1e293b",
   },
-  suggestionText: { color: "#94a3b8", fontSize: 14 },
+  suggestionText: { color: "#64748b", fontSize: 13 },
 });
