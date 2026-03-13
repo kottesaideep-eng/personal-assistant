@@ -345,7 +345,9 @@ Return a JSON array only, no markdown, no explanation.
                 messages=[{"role": "user", "content": prompt}],
             )
         )
-        items = json.loads(msg.content[0].text)
+        raw_response = msg.content[0].text.strip()
+        raw_response = raw_response.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        items = json.loads(raw_response)
     except Exception as e:
         print(f"[ai-feed] Claude error: {e}")
         return []
