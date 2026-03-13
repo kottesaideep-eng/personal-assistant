@@ -325,16 +325,15 @@ async def _fetch_ai_feed() -> list[dict]:
 
     prompt = f"""You are curating an AI news feed for a software developer who wants to stay on top of new AI tools, models, libraries, and applications they can use personally or integrate into projects.
 
-Given these raw search results, extract the 8-10 most interesting and actionable items. For each item return a JSON object with:
+Generate 8-10 of the most interesting and actionable recent AI items. For each item return a JSON object with:
 - title: short name of the tool/model/project
 - summary: 1-2 sentence description of what it is
 - category: one of "model", "tool", "library", "paper", "news"
 - why_useful: 1 sentence on why a developer would want to use this
-- url: the source URL
+- url: the real source URL (GitHub, HuggingFace, official site, or article)
 
 Return a JSON array only, no markdown, no explanation.
 
-Search results:
 {raw_text}"""
 
     try:
