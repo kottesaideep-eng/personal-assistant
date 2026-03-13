@@ -1,4 +1,4 @@
-import { HistoryItem, AiFeedItem } from "./types";
+import { HistoryItem, AiFeedItem, TrendingArticle } from "./types";
 
 export async function sendMessage(
   baseUrl: string,
@@ -102,6 +102,27 @@ export async function getAiFeed(baseUrl: string): Promise<AiFeedItem[]> {
 export async function refreshAiFeed(baseUrl: string): Promise<number> {
   try {
     const response = await fetch(`${baseUrl.replace(/\/$/, "")}/ai-feed/refresh`, { method: "POST" });
+    if (!response.ok) return 0;
+    const data = await response.json();
+    return data.count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function getTrendingArticles(baseUrl: string): Promise<TrendingArticle[]> {
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/trending-articles`);
+    if (!response.ok) return [];
+    return response.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function refreshTrendingArticles(baseUrl: string): Promise<number> {
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/trending-articles/refresh`, { method: "POST" });
     if (!response.ok) return 0;
     const data = await response.json();
     return data.count ?? 0;

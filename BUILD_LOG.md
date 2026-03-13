@@ -1131,3 +1131,50 @@ find a more suitable position for it"
 |------|--------|
 | `mobile-fresh/src/components/FloatingMenu.tsx` | Repositioned, arc fan, per-color items, pulse/bounce/glow |
 | `mobile-fresh/App.tsx` | Added `color` prop to each menu item |
+
+---
+
+## Phase 19 — Top Trending Articles Section in AI Feed
+
+### User Prompt
+```
+"put in a subsection for top trending articles, have a summarized view of the articles
+coming as card view, and then on click take them to the source"
+```
+
+### What Was Added
+
+**server.py:**
+- New `TRENDING_FILE` for caching trending articles
+- `_fetch_trending_articles()` — uses Tavily (3 queries) to get top world/tech/science headlines, then asks Claude Haiku to summarize into 8 structured articles with: title, summary, source, url, category
+- Falls back to Claude's knowledge base if no Tavily key
+- `GET /trending-articles` — returns today's cached articles, auto-refreshes if stale
+- `POST /trending-articles/refresh` — manual refresh
+- Scheduled daily refresh at 07:30 UTC
+
+**types.ts:**
+- New `TrendingArticle` interface: id, title, summary, source, url, category, fetched_at
+
+**api.ts:**
+- `getTrendingArticles()` — fetches from `/trending-articles`
+- `refreshTrendingArticles()` — calls `/trending-articles/refresh`
+
+**AiFeedModal.tsx — full restructure:**
+- Modal now has two subsections: "📰 Top Trending" and "🤖 AI Radar"
+- Trending articles render as **horizontal-scrolling cards** (256px wide, snap-to-card)
+- Each trending card shows: category badge (color-coded), source name, headline, 2-3 sentence summary, "Read article →" link
+- Tapping a card opens the source URL in the browser via `Linking.openURL`
+- Each section has its own independent ↻ refresh button
+- Both sections load in parallel on modal open
+- Redesigned to match the Phase 17 dark color palette
+
+### Category Colors (Trending)
+World: pink | Technology: indigo | Science: emerald | Business: amber | Health: green | Sports: sky
+
+### Files Modified/Created
+| File | Change |
+|------|--------|
+| `server.py` | `/trending-articles` endpoint + `_fetch_trending_articles()` + scheduler |
+| `mobile-fresh/src/types.ts` | `TrendingArticle` interface |
+| `mobile-fresh/src/api.ts` | `getTrendingArticles()`, `refreshTrendingArticles()` |
+| `mobile-fresh/src/components/AiFeedModal.tsx` | Full restructure with trending + AI Radar sections |

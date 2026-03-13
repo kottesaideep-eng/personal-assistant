@@ -29,6 +29,16 @@ export interface AiFeedItem {
   fetched_at: string;
 }
 
+export interface TrendingArticle {
+  id: string;
+  title: string;
+  summary: string;
+  source: string;
+  url: string;
+  category: string;
+  fetched_at: string;
+}
+
 export interface PendingReplyRecord {
   id: string;
   sender_name: string;

@@ -31,6 +31,7 @@ REMINDERS_FILE = os.path.join(DATA_DIR, "reminders.json")
 PENDING_REPLIES_FILE = os.path.join(DATA_DIR, "pending_replies.json")
 AI_FEED_FILE = os.path.join(DATA_DIR, "ai_feed.json")
 SUGGESTIONS_FILE = os.path.join(DATA_DIR, "suggestions.json")
+TRENDING_FILE = os.path.join(DATA_DIR, "trending_articles.json")
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -587,6 +588,125 @@ async def refresh_ai_feed():
     return {"count": len(feed)}
 
 
+# ── Trending Articles ─────────────────────────────────────────────────────────
+
+TRENDING_QUERIES = [
+    "top trending world news today",
+    "breaking news headlines today",
+    "trending technology and science news today",
+]
+
+async def _fetch_trending_articles() -> list[dict]:
+    """Fetch and summarize top trending news articles using Tavily + Claude."""
+    import anthropic as _anthropic
+
+    tavily_key = os.environ.get("TAVILY_API_KEY")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not anthropic_key:
+        print("[trending] Missing ANTHROPIC_API_KEY, skipping fetch")
+        return []
+
+    raw_results: list[dict] = []
+    if tavily_key:
+        async with httpx.AsyncClient(timeout=20) as client:
+            for query in TRENDING_QUERIES:
+                try:
+                    resp = await client.post(
+                        "https://api.tavily.com/search",
+                        json={"query": query, "max_results": 5, "search_depth": "basic"},
+                        headers={"Authorization": f"Bearer {tavily_key}"},
+                    )
+                    data = resp.json()
+                    for r in data.get("results", []):
+                        raw_results.append({
+                            "title": r.get("title", ""),
+                            "url": r.get("url", ""),
+                            "content": r.get("content", "")[:500],
+                        })
+                except Exception as e:
+                    print(f"[trending] Search error: {e}")
+    else:
+        print("[trending] No TAVILY_API_KEY — using Claude knowledge base")
+
+    seen_urls: set[str] = set()
+    unique_results = []
+    for r in raw_results:
+        if r["url"] not in seen_urls:
+            seen_urls.add(r["url"])
+            unique_results.append(r)
+
+    if unique_results:
+        raw_text = "Based on these search results:\n\n" + "\n\n".join(
+            f"Title: {r['title']}\nURL: {r['url']}\nSnippet: {r['content']}"
+            for r in unique_results
+        )
+    else:
+        raw_text = "Use your knowledge of today's biggest news stories. Focus on major world events, technology breakthroughs, science discoveries, and business news from the past 24-48 hours."
+
+    prompt = f"""You are curating a trending news feed. Generate 8 of the most significant trending news stories right now.
+
+For each story return a JSON object with:
+- title: the article headline (concise, under 90 chars)
+- summary: 2-3 sentence plain-English summary of the story
+- source: publication name (e.g. "BBC News", "TechCrunch", "Reuters")
+- url: the real source URL
+- category: one of "World", "Technology", "Science", "Business", "Health", "Sports"
+
+Return a JSON array only, no markdown, no explanation.
+
+{raw_text}"""
+
+    try:
+        ac = _anthropic.Anthropic(api_key=anthropic_key)
+        msg = await asyncio.to_thread(
+            lambda: ac.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        )
+        raw_response = msg.content[0].text.strip()
+        raw_response = raw_response.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        items = json.loads(raw_response)
+    except Exception as e:
+        print(f"[trending] Claude error: {e}")
+        return []
+
+    now = datetime.utcnow().isoformat() + "Z"
+    articles = [
+        {
+            "id": str(uuid.uuid4()),
+            "title": item.get("title", ""),
+            "summary": item.get("summary", ""),
+            "source": item.get("source", ""),
+            "url": item.get("url", ""),
+            "category": item.get("category", "World"),
+            "fetched_at": now,
+        }
+        for item in items
+        if isinstance(item, dict)
+    ]
+    _save_json(TRENDING_FILE, articles)
+    print(f"[trending] Saved {len(articles)} articles")
+    return articles
+
+
+@app.get("/trending-articles")
+async def get_trending_articles():
+    """Return today's cached trending articles, refreshing if stale."""
+    cached = _load_json(TRENDING_FILE, [])
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    if cached and cached[0].get("fetched_at", "").startswith(today):
+        return cached
+    return await _fetch_trending_articles()
+
+
+@app.post("/trending-articles/refresh")
+async def refresh_trending_articles():
+    articles = await _fetch_trending_articles()
+    return {"count": len(articles)}
+
+
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
@@ -595,6 +715,7 @@ async def start_scheduler():
     scheduler.add_job(_dispatch_due_reminders, "interval", minutes=1)
     scheduler.add_job(_fetch_ai_feed, "cron", hour=8, minute=0)
     scheduler.add_job(_fetch_suggestions, "cron", hour=7, minute=0)
+    scheduler.add_job(_fetch_trending_articles, "cron", hour=7, minute=30)
     scheduler.start()
 
 
