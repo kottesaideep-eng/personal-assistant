@@ -1332,3 +1332,47 @@ present in the background"
 | File | Change |
 |------|--------|
 | `server.py` | Gmail IMAP/SMTP poller, /gmail/status, /gmail/poll endpoints, scheduler job |
+
+---
+
+## Phase 23 — Multi-Gmail Account Support
+
+### User Prompt
+```
+"can i have multiple gmail addresses added with different nicknames"
+```
+
+### Changes
+
+**server.py:**
+- Added `_get_gmail_accounts()` helper — reads accounts from two formats:
+  1. **Multi-account JSON** (new): `GMAIL_ACCOUNTS='[{"nickname":"Work","user":"a@gmail.com","password":"xxxx"},...]'`
+  2. **Legacy single-account** (backward compat): `GMAIL_USER` + `GMAIL_APP_PASSWORD` (nickname defaults to "Gmail")
+- Refactored `_poll_gmail()` into `_poll_gmail_account(account)` + `_poll_gmail()` orchestrator
+- Each email record now stores `gmail_account` (address) and `gmail_nickname` for routing
+- Push notification title includes nickname: `✉️ [Work] Email from John`
+- `approve_pending_reply` looks up the originating account by `gmail_account` field to send reply from correct address
+- `/gmail/status` now returns list of all configured accounts with nickname + address
+
+**types.ts:**
+- `PendingReplyRecord` gains optional `gmail_account` and `gmail_nickname` fields
+
+**PendingRepliesModal.tsx:**
+- Source badge now shows nickname: "✉️ Work" or "✉️ Personal" instead of generic "✉️ Email"
+
+### Railway Environment Variable Format
+Set a single `GMAIL_ACCOUNTS` variable with a JSON array:
+```json
+[
+  {"nickname": "Personal", "user": "personal@gmail.com", "password": "xxxx xxxx xxxx xxxx"},
+  {"nickname": "Work",     "user": "work@gmail.com",     "password": "yyyy yyyy yyyy yyyy"}
+]
+```
+(Old `GMAIL_USER` + `GMAIL_APP_PASSWORD` still works for single-account setup)
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `server.py` | Multi-account support, _get_gmail_accounts, per-account routing |
+| `mobile-fresh/src/types.ts` | gmail_account, gmail_nickname on PendingReplyRecord |
+| `mobile-fresh/src/components/PendingRepliesModal.tsx` | Show nickname in source badge |

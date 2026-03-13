@@ -153,7 +153,9 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
                           item.source === "email" ? styles.sourceBadgeEmail : styles.sourceBadgeIMessage,
                         ]}>
                           <Text style={styles.sourceBadgeText}>
-                            {item.source === "email" ? "✉️ Email" : "💬 iMessage"}
+                            {item.source === "email"
+                              ? `✉️ ${item.gmail_nickname ?? "Email"}`
+                              : "💬 iMessage"}
                           </Text>
                         </View>
                         <Text style={styles.timestamp}>{formatTime(item.created_at)}</Text>

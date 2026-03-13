@@ -242,12 +242,16 @@ async def approve_pending_reply(reply_id: str, req: ApproveRequest):
 
             # Auto-send email replies from Railway via Gmail SMTP
             if r.get("source") == "email":
-                gmail_user = os.environ.get("GMAIL_USER")
-                gmail_pass = os.environ.get("GMAIL_APP_PASSWORD")
-                if gmail_user and gmail_pass:
+                # Use the account that originally received the email, or fall back to first configured
+                accounts = _get_gmail_accounts()
+                acct = next(
+                    (a for a in accounts if a["user"] == r.get("gmail_account")),
+                    accounts[0] if accounts else None,
+                )
+                if acct:
                     sent = await asyncio.to_thread(
                         _gmail_send,
-                        gmail_user, gmail_pass,
+                        acct["user"], acct["password"],
                         r.get("sender_email") or r.get("sender_handle", ""),
                         r.get("sender_name", ""),
                         r.get("subject", ""),
@@ -947,14 +951,36 @@ async def _draft_reply_text(sender_name: str, message: str,
         return None
 
 
-async def _poll_gmail() -> int:
-    """Poll Gmail inbox, draft replies, push to phone. Returns count of new items."""
-    gmail_user = os.environ.get("GMAIL_USER")
-    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD")
-    if not gmail_user or not gmail_pass:
-        return 0
+def _get_gmail_accounts() -> list[dict]:
+    """Return list of {nickname, user, password} dicts from env vars.
 
-    print("[gmail] Polling inbox…")
+    Supports two formats:
+    1. Multi-account JSON: GMAIL_ACCOUNTS='[{"nickname":"Work","user":"a@gmail.com","password":"xxxx"},...]'
+    2. Legacy single-account: GMAIL_USER + GMAIL_APP_PASSWORD (nickname defaults to "Gmail")
+    """
+    raw = os.environ.get("GMAIL_ACCOUNTS")
+    if raw:
+        try:
+            accounts = json.loads(raw)
+            return [a for a in accounts if a.get("user") and a.get("password")]
+        except Exception as e:
+            print(f"[gmail] Failed to parse GMAIL_ACCOUNTS JSON: {e}")
+
+    # Legacy fallback
+    user = os.environ.get("GMAIL_USER")
+    pwd  = os.environ.get("GMAIL_APP_PASSWORD")
+    if user and pwd:
+        return [{"nickname": "Gmail", "user": user, "password": pwd}]
+    return []
+
+
+async def _poll_gmail_account(account: dict) -> int:
+    """Poll a single Gmail account. Returns count of new items."""
+    nickname = account.get("nickname", "Gmail")
+    gmail_user = account["user"]
+    gmail_pass = account["password"]
+
+    print(f"[gmail:{nickname}] Polling inbox…")
     emails = await asyncio.to_thread(_gmail_fetch_unread, gmail_user, gmail_pass)
     if not emails:
         return 0
@@ -976,13 +1002,13 @@ async def _poll_gmail() -> int:
 
         # Skip automated/noreply senders
         if any(p in sender_email.lower() for p in NOREPLY_PATTERNS):
-            print(f"[gmail] Skipping automated sender: {sender_email}")
+            print(f"[gmail:{nickname}] Skipping automated sender: {sender_email}")
             continue
 
         if not body.strip():
             continue
 
-        print(f"[gmail] New email from {sender_name} <{sender_email}>: {subject[:50]}")
+        print(f"[gmail:{nickname}] New email from {sender_name} <{sender_email}>: {subject[:50]}")
 
         draft = await _draft_reply_text(sender_name, body, subject)
         if not draft:
@@ -998,6 +1024,8 @@ async def _poll_gmail() -> int:
             "source": "email",
             "subject": subject,
             "sender_email": sender_email,
+            "gmail_account": gmail_user,   # track which account received it
+            "gmail_nickname": nickname,
             "status": "pending",
             "approved_text": None,
             "created_at": datetime.utcnow().isoformat() + "Z",
@@ -1019,7 +1047,7 @@ async def _poll_gmail() -> int:
                             "https://exp.host/--/api/v2/push/send",
                             json={
                                 "to": token,
-                                "title": f"✉️ Email from {sender_name}",
+                                "title": f"✉️ [{nickname}] Email from {sender_name}",
                                 "body": subject,
                                 "sound": "default",
                                 "data": {"type": "pending_reply", "id": record["id"]},
@@ -1028,18 +1056,28 @@ async def _poll_gmail() -> int:
                     except Exception:
                         pass
 
-    print(f"[gmail] {new_count} new emails queued")
+    print(f"[gmail:{nickname}] {new_count} new emails queued")
     return new_count
+
+
+async def _poll_gmail() -> int:
+    """Poll all configured Gmail accounts. Returns total count of new items."""
+    accounts = _get_gmail_accounts()
+    if not accounts:
+        return 0
+    total = 0
+    for account in accounts:
+        total += await _poll_gmail_account(account)
+    return total
 
 
 @app.get("/gmail/status")
 async def gmail_status():
     """Check whether Gmail credentials are configured."""
-    gmail_user = os.environ.get("GMAIL_USER")
-    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD")
+    accounts = _get_gmail_accounts()
     return {
-        "configured": bool(gmail_user and gmail_pass),
-        "account": gmail_user or None,
+        "configured": len(accounts) > 0,
+        "accounts": [{"nickname": a.get("nickname", "Gmail"), "user": a["user"]} for a in accounts],
     }
 
 

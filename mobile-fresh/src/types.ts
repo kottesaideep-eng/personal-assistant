@@ -52,4 +52,6 @@ export interface PendingReplyRecord {
   source?: "imessage" | "email";
   subject?: string;
   sender_email?: string;
+  gmail_account?: string;
+  gmail_nickname?: string;
 }
