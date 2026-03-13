@@ -3,6 +3,11 @@
     "name": "Roar",
     "slug": "personal-assistant",
     "version": "1.0.0",
+    "extra": {
+      "eas": {
+        "projectId": "7974944e-4470-4d86-a2cb-3607912aae7d"
+      }
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
