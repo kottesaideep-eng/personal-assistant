@@ -8,7 +8,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Linking,
-  RefreshControl,
   SafeAreaView,
 } from "react-native";
 import { AiFeedItem } from "../types";
@@ -122,9 +121,21 @@ export default function AiFeedModal({ visible, onClose, backendUrl }: Props) {
               </Text>
             )}
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Text style={styles.closeText}>Done</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={onRefresh}
+              style={[styles.refreshBtn, refreshing && styles.refreshBtnDisabled]}
+              disabled={refreshing}
+            >
+              {refreshing
+                ? <ActivityIndicator size="small" color="#6366f1" />
+                : <Text style={styles.refreshText}>↻ Refresh</Text>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <Text style={styles.closeText}>Done</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading && !refreshing ? (
@@ -136,7 +147,7 @@ export default function AiFeedModal({ visible, onClose, backendUrl }: Props) {
           <View style={styles.center}>
             <Text style={styles.emptyEmoji}>📡</Text>
             <Text style={styles.emptyTitle}>No feed yet</Text>
-            <Text style={styles.emptySubtitle}>Pull down to fetch the latest AI news</Text>
+            <Text style={styles.emptySubtitle}>Tap Refresh to fetch the latest AI news</Text>
           </View>
         ) : (
           <FlatList
@@ -144,9 +155,6 @@ export default function AiFeedModal({ visible, onClose, backendUrl }: Props) {
             keyExtractor={(i) => i.id}
             renderItem={renderItem}
             contentContainerStyle={styles.list}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366f1" />
-            }
           />
         )}
       </SafeAreaView>
@@ -171,8 +179,12 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 20, fontWeight: "700", color: "#f1f5f9" },
   subtitle: { fontSize: 12, color: "#64748b", marginTop: 2 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  refreshBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#1e293b", borderRadius: 8, minWidth: 80, alignItems: "center" },
+  refreshBtnDisabled: { opacity: 0.5 },
+  refreshText: { color: "#6366f1", fontWeight: "600", fontSize: 14 },
   closeBtn: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: "#1e293b", borderRadius: 8 },
-  closeText: { color: "#6366f1", fontWeight: "600", fontSize: 15 },
+  closeText: { color: "#94a3b8", fontWeight: "600", fontSize: 15 },
   list: { padding: 16, gap: 12 },
   card: {
     backgroundColor: "#1e293b", borderRadius: 14, padding: 16,
