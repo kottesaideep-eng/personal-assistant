@@ -1089,6 +1089,37 @@ async def gmail_poll_now():
     return {"new_emails": count}
 
 
+@app.get("/gmail/debug")
+async def gmail_debug():
+    """Test IMAP connection and return unread email count."""
+    accounts = _get_gmail_accounts()
+    if not accounts:
+        return {"error": "No Gmail accounts configured"}
+    results = []
+    for acct in accounts:
+        try:
+            imap = imaplib.IMAP4_SSL("imap.gmail.com")
+            imap.login(acct["user"], acct["password"])
+            imap.select("INBOX")
+            _, data = imap.search(None, "UNSEEN")
+            unseen_ids = data[0].split() if data[0] else []
+            imap.logout()
+            results.append({
+                "nickname": acct.get("nickname", "Gmail"),
+                "user": acct["user"],
+                "status": "ok",
+                "unseen_count": len(unseen_ids),
+            })
+        except Exception as e:
+            results.append({
+                "nickname": acct.get("nickname", "Gmail"),
+                "user": acct["user"],
+                "status": "error",
+                "error": str(e),
+            })
+    return {"accounts": results}
+
+
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
