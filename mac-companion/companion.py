@@ -181,6 +181,11 @@ def send_email_via_applescript(to_address: str, to_name: str, subject: str, body
     safe_to      = to_address.replace('"', '\\"')
     safe_name    = to_name.replace('"', '\\"')
 
+    # Step 1: wake up Mail.app so it responds to AppleEvents
+    subprocess.run(["osascript", "-e", 'tell application "Mail" to activate'], timeout=10)
+    time.sleep(2)
+
+    # Step 2: compose and send
     script = f'''
 with timeout of 60 seconds
     tell application "Mail"
@@ -192,11 +197,23 @@ with timeout of 60 seconds
     end tell
 end timeout
 '''
-    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=75)
-    if result.returncode != 0:
-        print(f"[companion] Mail.app send error: {result.stderr.strip()}")
-        return False
-    return True
+    for attempt in range(1, 4):
+        try:
+            result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=75)
+            if result.returncode == 0:
+                return True
+            err = result.stderr.strip()
+            print(f"[companion] Mail.app send error (attempt {attempt}): {err}")
+            if "-1712" in err and attempt < 3:
+                # Mail.app still busy — give it more time then retry
+                time.sleep(5)
+                continue
+            return False
+        except subprocess.TimeoutExpired:
+            print(f"[companion] Mail.app send timed out (attempt {attempt})")
+            if attempt < 3:
+                time.sleep(5)
+    return False
 
 
 # ── Backend API helpers ────────────────────────────────────────────────────────
