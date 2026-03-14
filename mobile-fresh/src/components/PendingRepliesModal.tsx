@@ -171,12 +171,14 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
                           styles.sourceBadge,
                           item.source === "email" ? styles.sourceBadgeEmail
                           : item.source === "sms" ? styles.sourceBadgeSms
+                          : item.source === "whatsapp" ? styles.sourceBadgeWhatsapp
                           : styles.sourceBadgeIMessage,
                         ]}>
                           <Text style={styles.sourceBadgeText}>
                             {item.source === "email"
                               ? `✉️ ${item.gmail_nickname ?? "Email"}`
                               : item.source === "sms" ? "💬 SMS"
+                              : item.source === "whatsapp" ? "💬 WhatsApp"
                               : "💬 iMessage"}
                           </Text>
                         </View>
@@ -390,6 +392,7 @@ const styles = StyleSheet.create({
   sourceBadgeIMessage: { backgroundColor: "#1e3a5f" },
   sourceBadgeEmail: { backgroundColor: "#1a3320" },
   sourceBadgeSms: { backgroundColor: "#2d1b4e" },
+  sourceBadgeWhatsapp: { backgroundColor: "#1a3d2b" },
   sourceBadgeText: { fontSize: 11, fontWeight: "700", color: "#94a3b8" },
   subjectLine: { color: "#60a5fa", fontSize: 12, marginTop: 4, fontStyle: "italic" },
 });

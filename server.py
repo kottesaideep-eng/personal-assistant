@@ -47,6 +47,10 @@ TWILIO_AUTH_TOKEN   = os.environ.get("TWILIO_AUTH_TOKEN", "")
 TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")  # e.g. "+12025551234"
 MY_PHONE_NUMBER     = os.environ.get("MY_PHONE_NUMBER", "")      # your personal number for forwarding
 
+WHATSAPP_TOKEN      = os.environ.get("WHATSAPP_TOKEN", "")       # Meta permanent access token
+WHATSAPP_PHONE_ID   = os.environ.get("WHATSAPP_PHONE_ID", "")   # Meta phone number ID
+WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "roar_verify_123")  # arbitrary secret
+
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
@@ -258,13 +262,17 @@ async def approve_pending_reply(reply_id: str, req: ApproveRequest):
             print(f"[approve] source={source}")
 
             if source == "sms":
-                # Send SMS directly via Twilio
                 to_number = r.get("sender_handle", "")
-                ok = await asyncio.to_thread(
-                    _twilio_send_sms, to_number, req.approved_text
-                )
+                ok = await asyncio.to_thread(_twilio_send_sms, to_number, req.approved_text)
                 if ok:
                     _sms_append_history(to_number, "assistant", req.approved_text)
+                    r["status"] = "dismissed"
+                    _save_json(PENDING_REPLIES_FILE, records)
+            elif source == "whatsapp":
+                wa_id = r.get("sender_handle", "")
+                ok = await _whatsapp_send(wa_id, req.approved_text)
+                if ok:
+                    _whatsapp_append_history(wa_id, "assistant", req.approved_text)
                     r["status"] = "dismissed"
                     _save_json(PENDING_REPLIES_FILE, records)
             else:
@@ -980,6 +988,50 @@ def _sms_append_history(phone_number: str, role: str, content: str) -> None:
     _save_json(SMS_HISTORY_FILE, history)
 
 
+# ── WhatsApp Cloud API ─────────────────────────────────────────────────────────
+
+WHATSAPP_HISTORY_FILE = os.path.join(DATA_DIR, "whatsapp_history.json")
+
+
+def _whatsapp_get_history(wa_id: str) -> list[dict]:
+    history = _load_json(WHATSAPP_HISTORY_FILE, {})
+    return history.get(wa_id, [])[-10:]
+
+
+def _whatsapp_append_history(wa_id: str, role: str, content: str) -> None:
+    history = _load_json(WHATSAPP_HISTORY_FILE, {})
+    thread = history.get(wa_id, [])
+    thread.append({"role": role, "content": content})
+    history[wa_id] = thread[-50:]
+    _save_json(WHATSAPP_HISTORY_FILE, history)
+
+
+async def _whatsapp_send(to_wa_id: str, text: str) -> bool:
+    """Send a WhatsApp message via Meta Cloud API."""
+    if not WHATSAPP_TOKEN or not WHATSAPP_PHONE_ID:
+        print("[whatsapp] Not configured (missing WHATSAPP_TOKEN or WHATSAPP_PHONE_ID)")
+        return False
+    url = f"https://graph.facebook.com/v19.0/{WHATSAPP_PHONE_ID}/messages"
+    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_wa_id,
+        "type": "text",
+        "text": {"body": text},
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, headers=headers, json=payload, timeout=15)
+        if resp.status_code == 200:
+            print(f"[whatsapp] Sent to {to_wa_id}")
+            return True
+        print(f"[whatsapp] Send error {resp.status_code}: {resp.text[:200]}")
+        return False
+    except Exception as e:
+        print(f"[whatsapp] Send exception: {e}")
+        return False
+
+
 async def _draft_reply_options(sender_name: str, message: str,
                                subject: str | None = None) -> list[str]:
     """Call Claude Haiku to generate 3 reply options (brief, friendly, formal). Returns list."""
@@ -1302,6 +1354,102 @@ async def twilio_status():
     return {
         "configured": bool(TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER),
         "phone_number": TWILIO_PHONE_NUMBER or None,
+    }
+
+
+# ── WhatsApp routes ────────────────────────────────────────────────────────────
+
+@app.get("/whatsapp/incoming")
+async def whatsapp_verify(request: Request):
+    """Meta webhook verification handshake."""
+    params = request.query_params
+    if params.get("hub.verify_token") == WHATSAPP_VERIFY_TOKEN:
+        return Response(content=params.get("hub.challenge", ""), media_type="text/plain")
+    return Response(content="Forbidden", status_code=403)
+
+
+@app.post("/whatsapp/incoming")
+async def whatsapp_incoming(request: Request):
+    """Meta WhatsApp Cloud API webhook — handles incoming messages."""
+    try:
+        data = await request.json()
+    except Exception:
+        return {"ok": True}
+
+    try:
+        entry = data["entry"][0]["changes"][0]["value"]
+        messages = entry.get("messages")
+        if not messages:
+            return {"ok": True}  # status update, not a message
+
+        msg = messages[0]
+        if msg.get("type") != "text":
+            return {"ok": True}  # ignore media/reactions for now
+
+        wa_id      = msg["from"]          # sender's WhatsApp ID (phone number)
+        body       = msg["text"]["body"].strip()
+        contact    = entry.get("contacts", [{}])[0]
+        sender_name = contact.get("profile", {}).get("name") or wa_id
+
+        print(f"[whatsapp] Message from {sender_name} ({wa_id}): {body[:80]}")
+
+        _whatsapp_append_history(wa_id, "user", body)
+        history = _whatsapp_get_history(wa_id)
+
+        options = await _draft_reply_options(sender_name=sender_name, message=body, subject=None)
+        draft_reply = options[0] if options else ""
+
+        record_id = str(uuid.uuid4())
+        record = {
+            "id": record_id,
+            "sender_name": sender_name,
+            "sender_handle": wa_id,
+            "chat_id": wa_id,
+            "original_message": body,
+            "draft_reply": draft_reply,
+            "draft_options": options,
+            "source": "whatsapp",
+            "status": "pending",
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        records = _load_json(PENDING_REPLIES_FILE, [])
+        records.append(record)
+        _save_json(PENDING_REPLIES_FILE, records)
+
+        # Push notification
+        devices = _load_json(DEVICES_FILE, [])
+        tokens = [d["token"] for d in devices if d.get("token")]
+        if tokens:
+            async with httpx.AsyncClient() as client:
+                for token in tokens:
+                    payload = {
+                        "to": token,
+                        "title": f"💬 WhatsApp from {sender_name}",
+                        "body": body,
+                        "sound": "default",
+                        "data": {
+                            "type": "pending_reply",
+                            "id": record_id,
+                            "draft": draft_reply,
+                            "categoryId": "PENDING_REPLY",
+                        },
+                    }
+                    try:
+                        await client.post("https://exp.host/--/api/v2/push/send", json=payload)
+                    except Exception:
+                        pass
+
+    except Exception as e:
+        print(f"[whatsapp] Webhook parse error: {e}")
+
+    return {"ok": True}
+
+
+@app.get("/whatsapp/status")
+async def whatsapp_status():
+    return {
+        "configured": bool(WHATSAPP_TOKEN and WHATSAPP_PHONE_ID),
+        "phone_number_id": WHATSAPP_PHONE_ID or None,
     }
 
 
