@@ -973,6 +973,10 @@ async def _draft_reply_options(sender_name: str, message: str,
             )
         )
         raw = msg.content[0].text.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw).strip()
         # Try JSON parse first
         try:
             options = json.loads(raw)
@@ -1085,7 +1089,7 @@ async def _poll_gmail_account(account: dict) -> int:
             async with httpx.AsyncClient() as client:
                 for token in tokens:
                     try:
-                        await client.post(
+                        resp = await client.post(
                             "https://exp.host/--/api/v2/push/send",
                             json={
                                 "to": token,
@@ -1096,8 +1100,9 @@ async def _poll_gmail_account(account: dict) -> int:
                                 "categoryId": "PENDING_REPLY",
                             },
                         )
-                    except Exception:
-                        pass
+                        print(f"[push] token={token[:20]}... status={resp.status_code} body={resp.text[:200]}")
+                    except Exception as e:
+                        print(f"[push] error: {e}")
 
     print(f"[gmail:{nickname}] {new_count} new emails queued")
     return new_count
