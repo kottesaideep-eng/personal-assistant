@@ -350,7 +350,7 @@ def message_watcher():
                 if record_id:
                     send_push(
                         title=f"💬 iMessage from {sender_name}",
-                        body=draft,
+                        body=text,
                         data={"type": "pending_reply", "id": record_id, "draft": draft, "categoryId": "PENDING_REPLY"},
                     )
 
@@ -422,7 +422,7 @@ def email_watcher():
                 if record_id:
                     send_push(
                         title=f"✉️ Email from {sender_name}",
-                        body=draft,
+                        body=content,
                         data={"type": "pending_reply", "id": record_id, "draft": draft, "categoryId": "PENDING_REPLY"},
                     )
 

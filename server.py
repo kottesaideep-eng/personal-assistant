@@ -1272,7 +1272,7 @@ async def twilio_incoming(request: Request):
                     payload = {
                         "to": token,
                         "title": f"💬 SMS from {sender_name}",
-                        "body": draft_reply,
+                        "body": body,
                         "sound": "default",
                         "data": {
                             "type": "pending_reply",
