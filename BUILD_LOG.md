@@ -1452,3 +1452,24 @@ from a set of auto generated messages you can generate after reviewing the email
 | `server.py` | _draft_reply_options() generates 3 variants |
 | `mobile-fresh/src/types.ts` | draft_options field |
 | `mobile-fresh/src/components/PendingRepliesModal.tsx` | 3 tappable reply option chips |
+
+---
+
+## Phase 26 — Fix Mail.app AppleEvent Timeout (-1712)
+
+### User Prompt
+```
+Mail.app send error: execution error: Mail got an error: AppleEvent timed out. (-1712)
+```
+
+### Fix
+
+**mac-companion/companion.py:**
+- Wrapped `send_email_via_applescript` AppleScript body in `with timeout of 60 seconds … end timeout`
+- Increased `subprocess.run` timeout from default (none) to `75` seconds
+- Without the `with timeout` wrapper, AppleScript defaults to a short timeout and fails when Mail.app is slow to respond
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `mac-companion/companion.py` | `with timeout of 60 seconds` wrapper + subprocess timeout=75 |

@@ -182,15 +182,17 @@ def send_email_via_applescript(to_address: str, to_name: str, subject: str, body
     safe_name    = to_name.replace('"', '\\"')
 
     script = f'''
-tell application "Mail"
-    set newMsg to make new outgoing message with properties {{subject:"{safe_subject}", content:"{safe_body}", visible:false}}
-    tell newMsg
-        make new to recipient with properties {{address:"{safe_to}", name:"{safe_name}"}}
+with timeout of 60 seconds
+    tell application "Mail"
+        set newMsg to make new outgoing message with properties {{subject:"{safe_subject}", content:"{safe_body}", visible:false}}
+        tell newMsg
+            make new to recipient with properties {{address:"{safe_to}", name:"{safe_name}"}}
+        end tell
+        send newMsg
     end tell
-    send newMsg
-end tell
+end timeout
 '''
-    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=75)
     if result.returncode != 0:
         print(f"[companion] Mail.app send error: {result.stderr.strip()}")
         return False
