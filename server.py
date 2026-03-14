@@ -240,12 +240,14 @@ async def get_pending_replies():
 
 @app.patch("/pending-reply/{reply_id}/approve")
 async def approve_pending_reply(reply_id: str, req: ApproveRequest):
+    print(f"[approve] id={reply_id} text_len={len(req.approved_text or '')}")
     records = _load_json(PENDING_REPLIES_FILE, [])
     for r in records:
         if r["id"] == reply_id:
             r["status"] = "approved"
             r["approved_text"] = req.approved_text
             _save_json(PENDING_REPLIES_FILE, records)
+            print(f"[approve] source={r.get('source')} to={r.get('sender_email')}")
 
             # Auto-send email replies from Railway via Gmail SMTP
             if r.get("source") == "email":
@@ -256,6 +258,7 @@ async def approve_pending_reply(reply_id: str, req: ApproveRequest):
                     accounts[0] if accounts else None,
                 )
                 if acct:
+                    print(f"[approve] sending via SMTP from {acct['user']}")
                     sent = await asyncio.to_thread(
                         _gmail_send,
                         acct["user"], acct["password"],
@@ -264,6 +267,7 @@ async def approve_pending_reply(reply_id: str, req: ApproveRequest):
                         r.get("subject", ""),
                         req.approved_text,
                     )
+                    print(f"[approve] SMTP result: sent={sent}")
                     if sent:
                         r["status"] = "dismissed"
                         _save_json(PENDING_REPLIES_FILE, records)
