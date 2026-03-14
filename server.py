@@ -933,8 +933,7 @@ def _gmail_send(gmail_user: str, gmail_pass: str,
         msg["Subject"] = re_subject
         msg.attach(MIMEText(body, "plain"))
 
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(gmail_user, gmail_pass)
             server.send_message(msg)
         print(f"[gmail] Sent reply to {to_addr}")
