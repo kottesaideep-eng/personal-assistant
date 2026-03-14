@@ -973,10 +973,19 @@ async def _draft_reply_options(sender_name: str, message: str,
             )
         )
         raw = msg.content[0].text.strip()
-        options = json.loads(raw)
-        if isinstance(options, list) and len(options) == 3:
-            return [str(o) for o in options]
-        return []
+        # Try JSON parse first
+        try:
+            options = json.loads(raw)
+            if isinstance(options, list) and len(options) >= 1:
+                # Pad to 3 if needed
+                while len(options) < 3:
+                    options.append(options[-1])
+                return [str(o) for o in options[:3]]
+        except json.JSONDecodeError:
+            pass
+        # Fallback: use raw text as single option, duplicate for the other two
+        print(f"[gmail] Draft options JSON parse failed, using raw text as fallback")
+        return [raw, raw, raw]
     except Exception as e:
         print(f"[gmail] Draft options error: {e}")
         return []
