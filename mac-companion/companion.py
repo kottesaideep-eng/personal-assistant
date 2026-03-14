@@ -116,17 +116,8 @@ def get_unread_emails() -> list[dict]:
     script = r'''
 tell application "Mail"
     set acct to first account
-    set inbox to missing value
-    repeat with boxName in {"INBOX", "Inbox", "inbox"}
-        try
-            set inbox to mailbox boxName of acct
-            exit repeat
-        end try
-    end repeat
-    if inbox is missing value then
-        return {}
-    end if
-    set unreadMsgs to (messages of inbox whose read status is false)
+    set inboxFolder to mailbox "INBOX" of acct
+    set unreadMsgs to (messages of inboxFolder whose read status is false)
     set output to {}
     repeat with msg in unreadMsgs
         set msgId to (id of msg) as string
