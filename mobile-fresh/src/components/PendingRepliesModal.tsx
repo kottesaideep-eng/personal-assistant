@@ -96,12 +96,8 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
         body: JSON.stringify({ approved_text: text }),
       });
       if (resp.ok) {
-        const result = await resp.json();
         setRecords((prev) => prev.filter((r) => r.id !== record.id));
         onCountChange(records.length - 1);
-        if (result.status !== "dismissed") {
-          Alert.alert("Queued", "Reply saved but email sending failed. Check Gmail credentials.");
-        }
       } else {
         Alert.alert("Error", "Server error approving reply.");
       }
