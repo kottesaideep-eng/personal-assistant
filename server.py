@@ -45,6 +45,7 @@ SMS_HISTORY_FILE = os.path.join(DATA_DIR, "sms_history.json")
 TWILIO_ACCOUNT_SID  = os.environ.get("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN   = os.environ.get("TWILIO_AUTH_TOKEN", "")
 TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")  # e.g. "+12025551234"
+MY_PHONE_NUMBER     = os.environ.get("MY_PHONE_NUMBER", "")      # your personal number for forwarding
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -1261,6 +1262,11 @@ async def twilio_incoming(request: Request):
     records = _load_json(PENDING_REPLIES_FILE, [])
     records.append(record)
     _save_json(PENDING_REPLIES_FILE, records)
+
+    # Forward to personal number via SMS
+    if MY_PHONE_NUMBER:
+        fwd = f"SMS from {from_number}:\n{body}"
+        await asyncio.to_thread(_twilio_send_sms, MY_PHONE_NUMBER, fwd)
 
     # Push notification
     if draft_reply:
