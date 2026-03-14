@@ -19,6 +19,20 @@ interface Props {
   onCountChange: (count: number) => void;
 }
 
+function cleanDraftText(raw: string): string {
+  // Strip markdown code fences and JSON array wrapper if present
+  let text = raw.trim();
+  text = text.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/i, "").trim();
+  // If it looks like a JSON array, try to extract the first string
+  if (text.startsWith("[")) {
+    try {
+      const arr = JSON.parse(text);
+      if (Array.isArray(arr) && arr.length > 0) return String(arr[0]);
+    } catch (_) {}
+  }
+  return text;
+}
+
 export default function PendingRepliesModal({ visible, backendUrl, onClose, onCountChange }: Props) {
   const [records, setRecords] = useState<PendingReplyRecord[]>([]);
   const [draftTexts, setDraftTexts] = useState<Record<string, string>>({});
@@ -41,7 +55,9 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
         const next = { ...prev };
         for (const r of pending) {
           if (next[r.id] === undefined) {
-            next[r.id] = r.draft_reply;
+            // Prefer first clean draft_option, else clean draft_reply
+            const raw = r.draft_options?.[0] ?? r.draft_reply ?? "";
+            next[r.id] = cleanDraftText(raw);
           }
         }
         return next;
@@ -80,11 +96,17 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
         body: JSON.stringify({ approved_text: text }),
       });
       if (resp.ok) {
+        const result = await resp.json();
         setRecords((prev) => prev.filter((r) => r.id !== record.id));
         onCountChange(records.length - 1);
+        if (result.status !== "dismissed") {
+          Alert.alert("Queued", "Reply saved but email sending failed. Check Gmail credentials.");
+        }
+      } else {
+        Alert.alert("Error", "Server error approving reply.");
       }
     } catch (e) {
-      Alert.alert("Error", "Failed to send reply. Please try again.");
+      Alert.alert("Error", "Failed to reach server. Please try again.");
     } finally {
       setSending((prev) => ({ ...prev, [record.id]: false }));
     }
@@ -191,7 +213,7 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
                             style={[styles.optionChip, { borderColor: isSelected ? color : "#1e293b", backgroundColor: isSelected ? color + "22" : "#0f172a" }]}
                             onPress={() => {
                               setSelectedOption((prev) => ({ ...prev, [item.id]: i }));
-                              setDraftTexts((prev) => ({ ...prev, [item.id]: item.draft_options![i] }));
+                              setDraftTexts((prev) => ({ ...prev, [item.id]: cleanDraftText(item.draft_options![i]) }));
                             }}
                           >
                             <Text style={[styles.optionTag, { color }]}>{tag}</Text>
