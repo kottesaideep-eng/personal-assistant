@@ -49,7 +49,7 @@ export interface PendingReplyRecord {
   status: string;
   approved_text: string | null;
   created_at: string;
-  source?: "imessage" | "email";
+  source?: "imessage" | "email" | "sms";
   subject?: string;
   sender_email?: string;
   gmail_account?: string;

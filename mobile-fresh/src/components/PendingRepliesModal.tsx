@@ -153,7 +153,7 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>✉️</Text>
               <Text style={styles.emptyText}>No pending replies</Text>
-              <Text style={styles.emptyHint}>New iMessages will appear here for review.</Text>
+              <Text style={styles.emptyHint}>New SMS and emails will appear here for review.</Text>
             </View>
           ) : (
             <FlatList
@@ -169,11 +169,14 @@ export default function PendingRepliesModal({ visible, backendUrl, onClose, onCo
                       <View style={styles.senderTopRow}>
                         <View style={[
                           styles.sourceBadge,
-                          item.source === "email" ? styles.sourceBadgeEmail : styles.sourceBadgeIMessage,
+                          item.source === "email" ? styles.sourceBadgeEmail
+                          : item.source === "sms" ? styles.sourceBadgeSms
+                          : styles.sourceBadgeIMessage,
                         ]}>
                           <Text style={styles.sourceBadgeText}>
                             {item.source === "email"
                               ? `✉️ ${item.gmail_nickname ?? "Email"}`
+                              : item.source === "sms" ? "💬 SMS"
                               : "💬 iMessage"}
                           </Text>
                         </View>
@@ -386,6 +389,7 @@ const styles = StyleSheet.create({
   sourceBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
   sourceBadgeIMessage: { backgroundColor: "#1e3a5f" },
   sourceBadgeEmail: { backgroundColor: "#1a3320" },
+  sourceBadgeSms: { backgroundColor: "#2d1b4e" },
   sourceBadgeText: { fontSize: 11, fontWeight: "700", color: "#94a3b8" },
   subjectLine: { color: "#60a5fa", fontSize: 12, marginTop: 4, fontStyle: "italic" },
 });

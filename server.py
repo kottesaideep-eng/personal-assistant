@@ -17,7 +17,7 @@ from typing import List, Optional
 import httpx
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -40,6 +40,11 @@ AI_FEED_FILE = os.path.join(DATA_DIR, "ai_feed.json")
 SUGGESTIONS_FILE = os.path.join(DATA_DIR, "suggestions.json")
 TRENDING_FILE = os.path.join(DATA_DIR, "trending_articles.json")
 GMAIL_WATERMARK_FILE = os.path.join(DATA_DIR, "gmail_watermark.json")
+SMS_HISTORY_FILE = os.path.join(DATA_DIR, "sms_history.json")
+
+TWILIO_ACCOUNT_SID  = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN   = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")  # e.g. "+12025551234"
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -247,12 +252,24 @@ async def approve_pending_reply(reply_id: str, req: ApproveRequest):
             r["status"] = "approved"
             r["approved_text"] = req.approved_text
             _save_json(PENDING_REPLIES_FILE, records)
-            print(f"[approve] source={r.get('source')} to={r.get('sender_email')}")
 
-            # Email replies are dispatched by the Mac companion via Mail.app
-            # (Railway cannot reach smtp.gmail.com due to network restrictions)
-            # The companion polls for "approved" records and sends them locally.
-            print(f"[approve] queued for companion dispatch: source={r.get('source')} to={r.get('sender_email')}")
+            source = r.get("source", "imessage")
+            print(f"[approve] source={source}")
+
+            if source == "sms":
+                # Send SMS directly via Twilio
+                to_number = r.get("sender_handle", "")
+                ok = await asyncio.to_thread(
+                    _twilio_send_sms, to_number, req.approved_text
+                )
+                if ok:
+                    _sms_append_history(to_number, "assistant", req.approved_text)
+                    r["status"] = "dismissed"
+                    _save_json(PENDING_REPLIES_FILE, records)
+            else:
+                # iMessage and email: dispatched by Mac companion
+                print(f"[approve] queued for companion dispatch: source={source}")
+
             return r
     raise HTTPException(status_code=404, detail="Reply not found")
 
@@ -925,6 +942,43 @@ def _gmail_send(gmail_user: str, gmail_pass: str,
         return False
 
 
+# ── Twilio SMS ─────────────────────────────────────────────────────────────────
+
+def _twilio_send_sms(to_number: str, body: str) -> bool:
+    """Send an SMS via Twilio REST API."""
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN or not TWILIO_PHONE_NUMBER:
+        print("[twilio] SMS not configured (missing env vars)")
+        return False
+    try:
+        from twilio.rest import Client
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        msg = client.messages.create(
+            body=body,
+            from_=TWILIO_PHONE_NUMBER,
+            to=to_number,
+        )
+        print(f"[twilio] SMS sent to {to_number} sid={msg.sid}")
+        return True
+    except Exception as e:
+        print(f"[twilio] SMS send error: {e}")
+        return False
+
+
+def _sms_get_history(phone_number: str) -> list[dict]:
+    """Return last 10 SMS exchanges with a given number."""
+    history = _load_json(SMS_HISTORY_FILE, {})
+    return history.get(phone_number, [])[-10:]
+
+
+def _sms_append_history(phone_number: str, role: str, content: str) -> None:
+    """Append a message to the SMS conversation history."""
+    history = _load_json(SMS_HISTORY_FILE, {})
+    thread = history.get(phone_number, [])
+    thread.append({"role": role, "content": content})
+    history[phone_number] = thread[-50:]  # keep last 50 per contact
+    _save_json(SMS_HISTORY_FILE, history)
+
+
 async def _draft_reply_options(sender_name: str, message: str,
                                subject: str | None = None) -> list[str]:
     """Call Claude Haiku to generate 3 reply options (brief, friendly, formal). Returns list."""
@@ -1164,6 +1218,85 @@ async def gmail_debug():
                 "error": str(e),
             })
     return {"accounts": results}
+
+
+# ── Twilio SMS routes ──────────────────────────────────────────────────────────
+
+@app.post("/twilio/incoming")
+async def twilio_incoming(request: Request):
+    """Twilio webhook — called when an SMS arrives on our Twilio number."""
+    form = await request.form()
+    from_number = form.get("From", "")
+    body        = (form.get("Body") or "").strip()
+
+    if not from_number or not body:
+        return Response(content="<Response/>", media_type="application/xml")
+
+    print(f"[twilio] SMS from {from_number}: {body[:80]}")
+
+    # Build conversation history for context
+    history = _sms_get_history(from_number)
+    _sms_append_history(from_number, "user", body)
+
+    # Use display name from history metadata if we have one; fall back to number
+    sender_name = from_number
+
+    # Draft 3 reply options
+    options = await _draft_reply_options(sender_name=sender_name, message=body, subject=None)
+    draft_reply = options[0] if options else ""
+
+    record_id = str(uuid.uuid4())
+    record = {
+        "id": record_id,
+        "sender_name": sender_name,
+        "sender_handle": from_number,
+        "chat_id": from_number,
+        "original_message": body,
+        "draft_reply": draft_reply,
+        "draft_options": options,
+        "source": "sms",
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    records = _load_json(PENDING_REPLIES_FILE, [])
+    records.append(record)
+    _save_json(PENDING_REPLIES_FILE, records)
+
+    # Push notification
+    if draft_reply:
+        devices = _load_json(DEVICES_FILE, [])
+        tokens = [d["token"] for d in devices if d.get("token")]
+        if tokens:
+            async with httpx.AsyncClient() as client:
+                for token in tokens:
+                    payload = {
+                        "to": token,
+                        "title": f"💬 SMS from {sender_name}",
+                        "body": draft_reply,
+                        "sound": "default",
+                        "data": {
+                            "type": "pending_reply",
+                            "id": record_id,
+                            "draft": draft_reply,
+                            "categoryId": "PENDING_REPLY",
+                        },
+                    }
+                    try:
+                        await client.post("https://exp.host/--/api/v2/push/send", json=payload)
+                        print(f"[push] SMS notification sent to token ...{token[-10:]}")
+                    except Exception:
+                        pass
+
+    # Return empty TwiML — we never auto-reply; human approves first
+    return Response(content="<Response/>", media_type="application/xml")
+
+
+@app.get("/twilio/status")
+async def twilio_status():
+    return {
+        "configured": bool(TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER),
+        "phone_number": TWILIO_PHONE_NUMBER or None,
+    }
 
 
 # ── Scheduler ─────────────────────────────────────────────────────────────────
