@@ -1,12 +1,18 @@
-"""Mac companion — watches iMessages and Apple Mail for new messages,
-drafts AI replies via Roar backend, and dispatches approved replies."""
+"""Mac companion — watches iMessages for new messages,
+drafts AI replies via Roar backend, and dispatches approved replies.
+Email polling is handled by the backend (server.py Gmail IMAP poller).
+Email sending is done directly via smtplib using credentials from the backend."""
 
+import email as email_lib
 import os
 import re
+import smtplib
 import sqlite3
 import subprocess
 import threading
 import time
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import requests
 
@@ -173,47 +179,60 @@ end tell
 
 # ── AppleScript — Apple Mail sender ───────────────────────────────────────────
 
-def send_email_via_applescript(to_address: str, to_name: str, subject: str, body: str) -> bool:
-    """Send an email reply via Mail.app."""
+_smtp_accounts: list[dict] | None = None
+_smtp_accounts_lock = threading.Lock()
+
+
+def _get_smtp_accounts() -> list[dict]:
+    """Fetch Gmail SMTP credentials from backend (cached after first call)."""
+    global _smtp_accounts
+    with _smtp_accounts_lock:
+        if _smtp_accounts is not None:
+            return _smtp_accounts
+    try:
+        resp = requests.get(f"{BACKEND_URL}/smtp-config", timeout=10)
+        resp.raise_for_status()
+        accounts = resp.json().get("accounts", [])
+        with _smtp_accounts_lock:
+            _smtp_accounts = accounts
+        print(f"[companion] Loaded {len(accounts)} SMTP account(s) from backend")
+        return accounts
+    except Exception as e:
+        print(f"[companion] Could not fetch SMTP config: {e}")
+        return []
+
+
+def send_email_via_smtp(from_account: str, to_address: str, to_name: str,
+                        subject: str, body: str) -> bool:
+    """Send an email reply via Gmail SMTP directly (no Mail.app)."""
+    accounts = _get_smtp_accounts()
+    # Match credentials by sender account; fall back to first account
+    creds = next((a for a in accounts if a["user"] == from_account), None)
+    if not creds and accounts:
+        creds = accounts[0]
+    if not creds:
+        print("[companion] No SMTP credentials available")
+        return False
+
+    gmail_user = creds["user"]
+    gmail_pass = creds["password"]
     re_subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"
-    safe_body    = body.replace('"', '\\"').replace("\\", "\\\\").replace("\n", "\\n")
-    safe_subject = re_subject.replace('"', '\\"')
-    safe_to      = to_address.replace('"', '\\"')
-    safe_name    = to_name.replace('"', '\\"')
 
-    # Step 1: wake up Mail.app so it responds to AppleEvents
-    subprocess.run(["osascript", "-e", 'tell application "Mail" to activate'], timeout=10)
-    time.sleep(2)
+    msg = MIMEMultipart()
+    msg["From"]    = gmail_user
+    msg["To"]      = f"{to_name} <{to_address}>" if to_name else to_address
+    msg["Subject"] = re_subject
+    msg.attach(MIMEText(body, "plain"))
 
-    # Step 2: compose and send
-    script = f'''
-with timeout of 60 seconds
-    tell application "Mail"
-        set newMsg to make new outgoing message with properties {{subject:"{safe_subject}", content:"{safe_body}", visible:false}}
-        tell newMsg
-            make new to recipient with properties {{address:"{safe_to}", name:"{safe_name}"}}
-        end tell
-        send newMsg
-    end tell
-end timeout
-'''
-    for attempt in range(1, 4):
-        try:
-            result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=75)
-            if result.returncode == 0:
-                return True
-            err = result.stderr.strip()
-            print(f"[companion] Mail.app send error (attempt {attempt}): {err}")
-            if "-1712" in err and attempt < 3:
-                # Mail.app still busy — give it more time then retry
-                time.sleep(5)
-                continue
-            return False
-        except subprocess.TimeoutExpired:
-            print(f"[companion] Mail.app send timed out (attempt {attempt})")
-            if attempt < 3:
-                time.sleep(5)
-    return False
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
+            server.login(gmail_user, gmail_pass)
+            server.send_message(msg)
+        print(f"[companion] Email sent to {to_address} via {gmail_user}")
+        return True
+    except Exception as e:
+        print(f"[companion] SMTP send error: {e}")
+        return False
 
 
 # ── Backend API helpers ────────────────────────────────────────────────────────
@@ -433,11 +452,12 @@ def approved_sender():
                 source        = record.get("source", "imessage")
 
                 if source == "email":
-                    sender_email = record.get("sender_email", "")
-                    sender_name  = record.get("sender_name", "")
-                    subject      = record.get("subject", "")
+                    sender_email  = record.get("sender_email", "")
+                    sender_name   = record.get("sender_name", "")
+                    subject       = record.get("subject", "")
+                    gmail_account = record.get("gmail_account", "")
                     print(f"[companion] Sending email reply to {sender_email}: {approved_text[:60]}")
-                    ok = send_email_via_applescript(sender_email, sender_name, subject, approved_text)
+                    ok = send_email_via_smtp(gmail_account, sender_email, sender_name, subject, approved_text)
                 else:
                     chat_id       = record.get("chat_id", "")
                     sender_handle = record.get("sender_handle", "")
@@ -462,11 +482,11 @@ if __name__ == "__main__":
     print(f"[companion] Backend: {BACKEND_URL}")
     print(f"[companion] chat.db: {CHAT_DB}")
 
+    # Email polling is handled by the backend's Gmail IMAP scheduler.
+    # Companion only needs iMessage watching + approved-reply dispatch.
     t1 = threading.Thread(target=message_watcher, daemon=True)
-    t2 = threading.Thread(target=email_watcher,   daemon=True)
     t3 = threading.Thread(target=approved_sender, daemon=True)
     t1.start()
-    t2.start()
     t3.start()
 
     try:

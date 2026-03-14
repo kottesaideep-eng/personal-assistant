@@ -1114,6 +1114,17 @@ async def gmail_status():
     }
 
 
+@app.get("/smtp-config")
+async def smtp_config():
+    """Return Gmail SMTP credentials for the Mac companion to use directly.
+    The companion cannot send via Mail.app reliably; it uses smtplib instead."""
+    accounts = _get_gmail_accounts()
+    if not accounts:
+        raise HTTPException(status_code=404, detail="No Gmail accounts configured")
+    # Return all accounts so companion can match sender_email → credentials
+    return {"accounts": [{"user": a["user"], "password": a["password"]} for a in accounts]}
+
+
 @app.post("/gmail/poll")
 async def gmail_poll_now():
     """Manually trigger a Gmail inbox poll."""
