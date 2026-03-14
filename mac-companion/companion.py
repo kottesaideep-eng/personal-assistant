@@ -115,7 +115,17 @@ def get_unread_emails() -> list[dict]:
     """Read unread emails from Mail.app inbox via AppleScript. Marks them as read."""
     script = r'''
 tell application "Mail"
-    set inbox to mailbox "INBOX" of first account
+    set acct to first account
+    set inbox to missing value
+    repeat with boxName in {"INBOX", "Inbox", "inbox"}
+        try
+            set inbox to mailbox boxName of acct
+            exit repeat
+        end try
+    end repeat
+    if inbox is missing value then
+        return {}
+    end if
     set unreadMsgs to (messages of inbox whose read status is false)
     set output to {}
     repeat with msg in unreadMsgs
