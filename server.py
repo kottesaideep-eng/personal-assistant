@@ -249,28 +249,10 @@ async def approve_pending_reply(reply_id: str, req: ApproveRequest):
             _save_json(PENDING_REPLIES_FILE, records)
             print(f"[approve] source={r.get('source')} to={r.get('sender_email')}")
 
-            # Auto-send email replies from Railway via Gmail SMTP
-            if r.get("source") == "email":
-                # Use the account that originally received the email, or fall back to first configured
-                accounts = _get_gmail_accounts()
-                acct = next(
-                    (a for a in accounts if a["user"] == r.get("gmail_account")),
-                    accounts[0] if accounts else None,
-                )
-                if acct:
-                    print(f"[approve] sending via SMTP from {acct['user']}")
-                    sent = await asyncio.to_thread(
-                        _gmail_send,
-                        acct["user"], acct["password"],
-                        r.get("sender_email") or r.get("sender_handle", ""),
-                        r.get("sender_name", ""),
-                        r.get("subject", ""),
-                        req.approved_text,
-                    )
-                    print(f"[approve] SMTP result: sent={sent}")
-                    if sent:
-                        r["status"] = "dismissed"
-                        _save_json(PENDING_REPLIES_FILE, records)
+            # Email replies are dispatched by the Mac companion via Mail.app
+            # (Railway cannot reach smtp.gmail.com due to network restrictions)
+            # The companion polls for "approved" records and sends them locally.
+            print(f"[approve] queued for companion dispatch: source={r.get('source')} to={r.get('sender_email')}")
             return r
     raise HTTPException(status_code=404, detail="Reply not found")
 
